@@ -1,10 +1,11 @@
 # DataONE_Operations
+
 Operations documentation for DataONE infrastructure
 
-NOTE: Primary location for operations docs is: 
+See:
 
-  https://purl.dataone.org/operations/index.html
-  
-until content is transferred to this repository.
+* The [Wiki](https://github.com/DataONEorg/DataONE_Operations/wiki) at https://github.com/DataONEorg/DataONE_Operations/wiki
+* Content in subversion: https://purl.dataone.org/operations/index.html
+
 
 
