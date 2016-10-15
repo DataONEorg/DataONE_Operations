@@ -5,15 +5,28 @@ URL encode or decode stdin to stdout
 import sys
 import logging
 import argparse
+import urllib
 
 
 def doEncode(instr, full_url=False):
+  print "encode"
   res = {}
+  if not full_url:
+    res = urllib.quote(instr)
+  else:
+    raise NotImplementedError("url parsing for encode not implemented")
+    pass
   return res
 
 
 def doDecode(instr, full_url=False):
+  print "decode"
   res = {}
+  if not full_url:
+    res = urllib.unquote(instr)
+  else:
+    raise NotImplementedError("url parsing for decode not implemented")
+    pass
   return res
 
 
@@ -50,5 +63,5 @@ if __name__ == "__main__":
     import json
     print json.dumps(res, encoding='utf-8')
     sys.exit(0)
-  print res
+  print res.decode('utf-8')
   sys.exit(0)
