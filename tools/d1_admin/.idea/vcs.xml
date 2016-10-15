@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="VcsDirectoryMappings">
-    <mapping directory="$PROJECT_DIR$/../d1Login" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/../d1_pyore" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/../d1_python" vcs="Git" />
-    <mapping directory="$PROJECT_DIR$/../indexer_documentation" vcs="Git" />
-  </component>
-</project>
