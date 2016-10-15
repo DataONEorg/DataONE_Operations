@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<d1_v2.0:systemMetadata xmlns:d1_v2.0="http://ns.dataone.org/service/types/v2.0" xmlns:d1="http://ns.dataone.org/service/types/v1">
+  <serialVersion>1</serialVersion>
+  <identifier>R1-x138-080-0014-003</identifier>
+  <formatId>http://www.isotc211.org/2005/gmd-noaa</formatId>
+  <size>23336</size>
+  <checksum algorithm="MD5">cb6beda3527d583c6621f8f36d091eef</checksum>
+  <submitter>CN=urn:node:mnTestGRIIDC,DC=dataone,DC=org</submitter>
+  <rightsHolder>CN=Joe Holland A51071,O=Harte Research Institute,C=US,DC=cilogon,DC=org</rightsHolder>
+  <accessPolicy>
+    <allow>
+      <subject>public</subject>
+      <permission>read</permission>
+    </allow>
+  </accessPolicy>
+  <dateUploaded>2016-08-23T21:08:07.023+00:00</dateUploaded>
+  <dateSysMetadataModified>2016-08-23T21:08:07.098+00:00</dateSysMetadataModified>
+  <originMemberNode>urn:node:mnTestGRIIDC</originMemberNode>
+  <authoritativeMemberNode>urn:node:mnTestGRIIDC</authoritativeMemberNode>
+  <replica>
+    <replicaMemberNode>urn:node:mnTestGRIIDC</replicaMemberNode>
+    <replicationStatus>completed</replicationStatus>
+    <replicaVerified>2016-08-23T23:19:48.532+00:00</replicaVerified>
+  </replica>
+  <replica>
+    <replicaMemberNode>urn:node:cnStage</replicaMemberNode>
+    <replicationStatus>completed</replicationStatus>
+    <replicaVerified>2016-08-23T23:19:48.537+00:00</replicaVerified>
+  </replica>
+</d1_v2.0:systemMetadata>

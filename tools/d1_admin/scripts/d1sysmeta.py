@@ -1,0 +1,144 @@
+'''
+Retrieve system metadata for a PID
+'''
+
+
+import logging
+import argparse
+import d1_admin_tools.d1_config
+import pprint
+from xml.etree.ElementTree import fromstring
+from xmljson import badgerfish as bf
+import json
+from d1_client import d1baseclient_2_0
+
+
+
+def indentXML(elem, level=0, indent='  '):
+  i = "\n" + level * indent
+  j = "\n" + (level - 1) * indent
+  if len(elem):
+    if not elem.text or not elem.text.strip():
+      elem.text = i + indent
+    if not elem.tail or not elem.tail.strip():
+      elem.tail = i
+    for subelem in elem:
+      indentXML(subelem, level + 1)
+    if not elem.tail or not elem.tail.strip():
+      elem.tail = j
+  else:
+    if level and (not elem.tail or not elem.tail.strip()):
+      elem.tail = j
+  return elem
+
+
+class DataONEResponse( object ):
+
+  def __init__(self, obj=None, xml=None, indent=2 ):
+    self.content = obj
+    self.xml = xml
+    self.indent = indent
+    self.setContent(obj, xml=xml)
+
+
+  def setContent(self, obj, xml=None):
+    self.content = obj
+    if xml is None:
+      if hasattr( obj, 'toxml' ):
+        self.xml = obj.toxml()
+      else:
+        dom = self.content.toDOM(None)
+        self.xml = dom.toprettyxml(indent=self.indent*u' ')
+    else:
+      self.xml = xml
+
+
+  def asXML(self):
+    return self.xml
+
+
+  def asJSON(self):
+    if self.content is None:
+      return None
+    jdata = bf.data(fromstring(self.asXML()))
+    return json.dumps(jdata, indent=self.indent, encoding=d1_admin_tools.d1_config.ENCODING)
+
+
+  def __unicode__(self):
+    return self.asJSON()
+
+
+def asJSON(obj):
+  if hasattr(obj, 'asJSON'):
+     return obj.asJSON()
+  return json.dumps(obj, encoding=d1_admin_tools.d1_config.ENCODING, indent=2)
+
+
+def asXML(obj):
+  return obj.asXML()
+
+
+def getSystemMetadata(client, pid):
+  ''' Retrieve system metadata for a PID
+
+  :param client: An instance of CoordinatingNodeClient
+  :param pid: Identifier to resolve
+  :return: Dictionary mimicking a SystemMetadata structure with addition of error entry
+  '''
+  try:
+    res = client.getSystemMetadata(pid)
+    return DataONEResponse( obj=res )
+  except Exception as e:
+    logging.info(e)
+  return DataONEResponse( e )
+
+
+def main():
+  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser.add_argument('-l', '--log_level',
+                      action='count',
+                      default=0,
+                      help='Set logging level, multiples for more detailed.')
+  parser.add_argument('-c', '--config',
+                      default=d1_admin_tools.d1_config.CONFIG_FILE,
+                      help='Name of configuration file (default = {0}'.format(d1_admin_tools.d1_config.CONFIG_FILE))
+  parser.add_argument('-f', '--format',
+                      default='text',
+                      help='Output format (text, json, yaml)')
+  parser.add_argument('-e', '--environment',
+                      default="production",
+                      help="Name of environment to examine")
+  parser.add_argument('-b', '--baseURL',
+                      default="https://cn.dataone.org/cn",
+                      help='Base URL of node from which to retrieve system metadata')
+  parser.add_argument('pid',
+                      help="Identifier to evaluate")
+  args = parser.parse_args()
+  # Setup logging verbosity
+  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+  level = levels[min(len(levels) - 1, args.log_level)]
+  logging.basicConfig(level=level,
+                      format="%(asctime)s %(levelname)s %(message)s")
+  config = d1_admin_tools.d1_config.D1Configuration()
+  config.load()
+  PP = pprint.PrettyPrinter(indent=2)
+
+  pid = args.pid
+  base_url = args.baseURL
+
+  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+  results = getSystemMetadata(client, pid)
+
+  format = args.format.lower()
+  if format not in ['text', 'json', 'xml']:
+    format = 'text'
+  if args.format == 'xml':
+    print( results.asXML() )
+  elif args.format == 'json':
+    print( results.asJSON())
+  else:
+    print( unicode(results) )
+
+
+if __name__ == "__main__":
+  main()
