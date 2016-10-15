@@ -8,11 +8,10 @@ import codecs
 import json
 import pprint
 
-ENCODING = "utf-8"
+ENCODING = 'utf-8'
 CONFIG_FOLDER = os.path.join( os.getenv("HOME"), ".dataone" )
 CONFIG_FILE = os.path.join( CONFIG_FOLDER, "d1_config.json" )
 DEFAULT_API_VERSION='2'
-ENCODING = 'utf-8'
 
 #----- D1Configuration -----
 class D1Configuration( object ):
@@ -151,7 +150,7 @@ class D1Configuration( object ):
 if __name__ == "__main__":
   import sys
   import argparse
-  parser = argparse.ArgumentParser(description='Initialize or dump a configuation file for DataONE tools.')
+  parser = argparse.ArgumentParser(description='Initialize or dump a configuration file for DataONE tools.')
   parser.add_argument('-l', '--log_level',
                       action='count',
                       default=0,
@@ -159,7 +158,7 @@ if __name__ == "__main__":
   parser.add_argument('-i', '--initialize',
                       action='store_true',
                       default=False,
-                      help='Resolve a bookmark entry.')
+                      help='Initialize the configuration file with default values.')
   parser.add_argument('-c', '--config',
                       default=CONFIG_FILE,
                       help='Specify alternate configuration file ({0}).'.format(CONFIG_FILE))
