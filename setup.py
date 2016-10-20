@@ -93,6 +93,8 @@ setup(
              'scripts/d1pidinfo',
              'scripts/d1resolve',
              'scripts/d1sysmeta',
+             'scripts/d1nodes',
+             'scripts/d1facets',
              ],
 
     # To provide executable scripts, use entry points in preference to the

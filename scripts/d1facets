@@ -1,0 +1,99 @@
+#!/bin/env python
+
+'''
+List facet values from solr
+'''
+
+import sys
+import logging
+import argparse
+import d1_admin_tools.d1_config
+import pprint
+from d1_client import solr_client
+
+def doGetFacets(config, environment, field, core='solr', q='*:*'):
+  '''
+      host='cn.dataone.org',
+    solrBase='/cn/v1/query/solr/',
+    persistent=True,
+    postHeaders={},
+    debug=False
+
+  :param config:
+  :param environment:
+  :param field:
+  :param core:
+  :param q:
+  :return:
+  '''
+  client = solr_client.SolrConnection(host=config.envPrimaryHost(environment),
+                                      solrBase='{0}/v2/query/{1}/'.format(config.envPrimaryBase(environment), core) )
+  vals = client.fieldValues( field, q=q)
+  result = {'numFound':vals['numFound'],
+            'field':field,
+            'values':[]}
+  for i in xrange(0, len(vals[field]), 2):
+    row = [vals[field][i], vals[field][i+1], ]
+    result['values'].append(row)
+  return result
+
+
+
+def main():
+  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser.add_argument('-c', '--config',
+                      default=d1_admin_tools.d1_config.CONFIG_FILE,
+                      help='Name of configuration file (default = {0}'.format(d1_admin_tools.d1_config.CONFIG_FILE))
+  parser.add_argument('-C', '--core',
+                      default='solr',
+                      help='Name of solr index to use (solr)')
+  parser.add_argument('-d', '--delimiter',
+                      default=',',
+                      help='Delimiter for text output (default = ,)')
+  parser.add_argument('-e', '--environment',
+                      default='production',
+                      help="Name of environment to examine (default = production")
+  parser.add_argument('-f', '--format',
+                      default='text',
+                      help='Output format (text, json, yaml)')
+  parser.add_argument('-F', '--field',
+                      default='nodeId',
+                      help='Field to get facet values')
+  parser.add_argument('-l', '--log_level',
+                      action='count',
+                      default=0,
+                      help='Set logging level, multiples for more detailed.')
+  parser.add_argument('-q', '--query',
+                      default='*:*',
+                      help='Query to use')
+  args = parser.parse_args()
+  # Setup logging verbosity
+  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+  level = levels[min(len(levels) - 1, args.log_level)]
+  logging.basicConfig(level=level,
+                      format="%(asctime)s %(levelname)s %(message)s")
+  config = d1_admin_tools.d1_config.D1Configuration()
+  config.load()
+  PP = pprint.PrettyPrinter(indent=2)
+
+  results = doGetFacets(config, args.environment, args.field, args.core, args.query)
+
+  format = args.format.lower()
+  if not format in ['text', 'json', 'yaml']:
+    format = 'text'
+    logging.warn("Unknown output format requested, using %s", format)
+  if format == 'json':
+    import json
+    print json.dumps(results, encoding='utf-8', indent=2)
+    return 0
+  if format == 'yaml':
+    import yaml
+    print yaml.safe_dump(results, encoding='utf-8')
+    return 0
+  for row in results['values']:
+    print("{0}{1}{2}".format(row[0], args.delimiter, row[1]))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

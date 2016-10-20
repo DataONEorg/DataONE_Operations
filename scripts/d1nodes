@@ -1,0 +1,129 @@
+#!/usr/bin/env python
+"""
+Resolve an identifier.
+"""
+
+import sys
+import logging
+import argparse
+import d1_admin_tools.d1_config
+import pprint
+from d1_client import cnclient_2_0
+
+
+def doListNodes(config, env, node_type='all'):
+  '''
+  returns  dict with {xml}, items:[  ]
+  replicate="false" synchronize="false" type="cn" state="up"
+  '''
+  client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env),
+                                                   api_major=2,
+                                                   capture_response_body=True)
+
+  nodes = client.listNodes()
+  result = {'xml': client.last_response_body,
+            'items': []}
+  for node in nodes.node:
+    row = {'nodeId': node.identifier.value(),
+           'baseUrl': node.baseURL,
+           'name': node.name,
+           'description': node.description,
+           'subject': [],
+           'contactSubject': [],
+           'type': node.type,
+           'replicate': node.replicate,
+           'synchronize':node.synchronize,
+           'state':node.state}
+    for s in node.subject:
+      row['subject'].append(s.value())
+    for s in node.contactSubject:
+      row['contactSubject'].append(s.value())
+    if node_type == 'all':
+      result['items'].append(row)
+    elif node_type == "mn" and row['type'].lower() == 'mn':
+      result['items'].append(row)
+    elif node_type == "cn" and row['type'].lower() == 'cn':
+      result['items'].append(row)
+  return result
+
+# synchronize="false" type="cn" state="up"
+
+def main():
+  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser.add_argument('-l', '--log_level',
+                      action='count',
+                      default=0,
+                      help='Set logging level, multiples for more detailed.')
+  parser.add_argument('-e', '--environment',
+                      default='production',
+                      help="Name of environment to examine (default = production")
+  parser.add_argument('-c', '--config',
+                      default=d1_admin_tools.d1_config.CONFIG_FILE,
+                      help='Name of configuration file (default = {0}'.format(d1_admin_tools.d1_config.CONFIG_FILE))
+  parser.add_argument('-f', '--format',
+                      default='text',
+                      help='Output format (text, json, yaml)')
+  parser.add_argument('-B', '--baseurl',
+                      action='store_true',
+                      help='Only present base URLs of nodes')
+  parser.add_argument('-I', '--nodeid',
+                      action='store_true',
+                      help='Only present node ID of nodes (overrides -b)')
+  parser.add_argument("-t", '--node_type',
+                      default='all',
+                      help = "Node type to return, cn = CNs, mn = MNs, all = all nodes (default)")
+  args = parser.parse_args()
+  # Setup logging verbosity
+  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+  level = levels[min(len(levels) - 1, args.log_level)]
+  logging.basicConfig(level=level,
+                      format="%(asctime)s %(levelname)s %(message)s")
+  config = d1_admin_tools.d1_config.D1Configuration()
+  config.load()
+  PP = pprint.PrettyPrinter(indent=2)
+  nodes = []
+
+  results = doListNodes(config, args.environment, args.node_type)
+
+  format = args.format.lower()
+  if format not in ['text', 'json', 'yaml', 'xml']:
+    format = 'text'
+  summary = None
+  if args.nodeid:
+    summary = []
+    for result in results['items']:
+      summary.append(result['nodeId'])
+  elif args.baseurl:
+    summary = []
+    for result in results['items']:
+      summary.append(result['baseUrl'])
+  if format == 'json':
+    import json
+    if summary is not None:
+      print json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)
+      return 0
+    print json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING)
+    return 0
+  if format == 'yaml':
+    import yaml
+    if summary is not None:
+      print(yaml.safe_dump(summary, encoding=d1_admin_tools.d1_config.ENCODING))
+      return 0
+    print(yaml.safe_dump(results['items'], encoding=d1_admin_tools.d1_config.ENCODING))
+  if format == 'xml':
+    import xml.dom.minidom
+    dom = xml.dom.minidom.parseString(results['xml'])
+    print dom.toprettyxml(indent=' '*2)
+    return 0
+  #text or anything else
+  if not summary is None:
+    for row in summary:
+      print(row)
+    return 0
+  for row in results['items']:
+    print("{nodeId}\t{baseUrl}\t{name}".format(**row))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

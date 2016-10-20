@@ -59,6 +59,16 @@ class D1Configuration( object ):
     return self.config['environments'][environment]['primary']['host']
 
 
+  def envPrimaryBase(self, environment):
+    '''
+
+    :param environment:
+    :return:
+    '''
+    env = self.config['environments'][environment]['primary']
+    return env['base']
+
+
   def envPrimaryBaseURL(self, environment):
     '''Return the base URL of the primary host for the specified environment.
     :param environment: name of environment
@@ -140,7 +150,6 @@ class D1Configuration( object ):
                   "host": "localhost"},
     # Some info needed for poking around the metacat installation
     self.config['metacat'] = {"data": "/var/metacat/data"}
-
 
   def dump(self):
     pprint.pprint( self.config, indent=2 )
