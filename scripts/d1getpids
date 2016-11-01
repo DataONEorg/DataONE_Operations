@@ -1,0 +1,283 @@
+#!/bin/env python
+
+'''
+Evaluate presence of content synchronized to Coordinating Nodes.
+
+Retrieve PIDs, SIDs, docid, revisions, and file names directly from CN
+databases and file system, then perform some analysis of the retrieved
+content to verify availability.
+
+This script bypasses the DataONE APIs to retrieve identifiers directly from the
+postgres database operating on Coordinating Nodes. Shell access to the CNs and
+a (readonly) postgres account are required.
+
+By default, content is placed in a subfolder named getpids_{env}_{date} of the
+current working folder, where env is the name of the environment being examined and
+date is the current date (UTC).
+'''
+
+import sys
+import logging
+import argparse
+import d1_admin_tools
+import datetime
+import time
+import dateparser
+import os
+import csv
+import codecs
+import json
+from fabric.api import task, execute, run, get
+
+PSQL_DATE_FORMAT="%Y-%m-%dT%H:%M:%S.%f%z"
+RESULTS_FILE = 'results.json'
+ANALYSIS_FILE = 'analysis.json'
+
+
+def tmpFileName(tmp_dir="/tmp/", prefix="", ext="txt"):
+  ts = int(time.time()*100000)
+  return "{0}{1}_{2}.{3}".format(tmp_dir, prefix, ts, ext)
+
+
+def runSQLQuery(SQL, dest_file, tmp_file=None):
+  if tmp_file is None:
+    tmp_file = tmpFileName("/tmp/", prefix="sql", ext="txt")
+  cmd = "psql -h localhost -U dataone_readonly metacat -P pager=off --single-transaction"
+  cmd += " --no-align -t --field-separator ' ' --quiet"
+  cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
+  logging.info("Command = %s", cmd)
+  run(cmd)
+  get(tmp_file, dest_file)
+  run("rm " + tmp_file)
+
+
+def listDataDocuments(dest_file):
+  tmp_file = tmpFileName("/tmp/", prefix="metacat_files", ext="txt")
+  cmd = "ls /var/metacat/documents > {0}".format(tmp_file)
+  run(cmd)
+  cmd = "ls /var/metacat/data >> {0}".format(tmp_file)
+  run(cmd)
+  get(tmp_file, dest_file)
+  run("rm " + tmp_file)
+
+
+def doGetIdentifiers_nopg(results, hosts, dest_folder, node_id=None, date_start=None, date_end=None):
+  '''
+  Manually escape input
+
+  :param config:
+  :param environment:
+  :param node_id:
+  :param date_start:
+  :param date_end:
+  :return:
+  '''
+  sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev, systemmetadata.series_id
+FROM identifier INNER JOIN systemmetadata ON identifier .guid = systemmetadata.guid
+WHERE """
+  conditions = []
+  params = []
+  if not node_id is None:
+    if node_id.find("'") >= 0:
+      raise ValueError("Invalid character in node_id!")
+    conditions.append("origin_member_node = '%s'" % node_id)
+    params.append(node_id)
+  if not date_start is None:
+    conditions.append("date_modified >= '%s'::timestamp" % date_start.strftime(PSQL_DATE_FORMAT))
+    params.append(date_start)
+  if not date_end is None:
+    conditions.append("date_modified < '%s'::timestamp" % date_end.strftime(PSQL_DATE_FORMAT))
+    params.append(date_end)
+  if len(conditions) < 1:
+    raise ValueError("At least one of node_id, date_start, or date_end is required.")
+  where_clause = " AND ".join(conditions)
+  SQL = sql_template + where_clause;
+  results['request']['SQL'] = SQL
+  logging.info(SQL)
+
+  results['results']['identifier_documents'] = {}
+  for host in hosts:
+    dest_file = os.path.join(dest_folder, "identifiers_{0}.txt".format(host))
+    results['results']['identifier_documents'][host] = dest_file
+    execute(runSQLQuery, SQL, dest_file, host=host)
+
+
+def doGetDataDocumentList(results, hosts, dest_folder):
+  results['results']['data_documents'] = {}
+  for host in hosts:
+    dest_file = os.path.join(dest_folder, "data_files_{0}.txt".format(host))
+    results['results']['data_documents'][host] = dest_file
+    execute(listDataDocuments, dest_file, host=host)
+
+
+def listAnotB(A, B):
+  A_not_B = []
+  row = 0
+  for i in A:
+    row += 1
+    if i not in B:
+      A_not_B.append(i)
+      #print ("Row:{0} | {1}".format(row, i))
+  return A_not_B
+
+
+def compareIdentifierList(results):
+  logging.info("Comparing identifiers...")
+  pids = {}
+  hosts = results['results']['identifier_documents'].keys()
+  for host in hosts:
+    pids[host] = []
+    with open(results['results']['identifier_documents'][host], 'rb') as id_file:
+      idreader = csv.reader(id_file, delimiter=' ')
+      for row in idreader:
+        pids[host].append(row[0])
+  results['results']['identifier_compare'] = []
+  for host_A in hosts:
+    for host_B in hosts:
+      logging.info("Comparing {0} - {1}".format(host_A, host_B))
+      delta = {"A":host_A,
+               "B":host_B,
+               "delta":listAnotB(pids[host_A], pids[host_B])}
+      results['results']['identifier_compare'].append(delta)
+  return pids
+
+
+def compareDocIdList(results):
+  logging.info("Comparing docids...")
+  docids = {}
+  filenames = {}
+  hosts = results['results']['identifier_documents'].keys()
+  for host in hosts:
+    docids[host] = []
+    with open(results['results']['identifier_documents'][host], 'rb') as id_file:
+      idreader = csv.reader(id_file, delimiter=' ')
+      for row in idreader:
+        docids[host].append("{0}.{1}".format(row[1], row[2]))
+  for host in hosts:
+    filenames[host] = []
+    with open(results['results']['data_documents'][host],'rb') as id_file:
+      for row in id_file.readlines():
+        filenames[host].append(row.strip())
+    logging.info("Loaded %d filenames for host %s.", len(filenames[host]), host)
+  results['results']['docid_compare'] = []
+  for host in hosts:
+    logging.info("Comparing docids with filesystem for host {0}".format(host))
+    delta = {'A': host,
+             'B': 'files',
+             'delta': listAnotB(docids[host], filenames[host])}
+    results['results']['docid_compare'].append(delta)
+  return docids
+
+
+def analyzeThis(results_folder, format="text"):
+  results = {}
+  with codecs.open(os.path.join(results_folder, RESULTS_FILE), mode='rb', encoding='utf-8') as rfile:
+    results = json.load(rfile, encoding='utf-8')
+  hosts = results['results']['data_documents'].keys()
+  if format == "text":
+    print("Hosts examined:")
+    for host in hosts:
+      print("  {0}".format(host))
+    print("")
+    print("PID comparison:")
+  identifier_check = compareIdentifierList(results)
+  filename_check = compareDocIdList(results)
+  with codecs.open(os.path.join(results_folder, ANALYSIS_FILE), mode='wb', encoding='utf-8') as rfile:
+    rfile.write(json.dumps(results, encoding='utf-8'))
+  if format == "text":
+    for delta in results['results']['identifier_compare']:
+      print("Found {0}/{1} indentifiers in {2} not in {3}".format(len(delta['delta']),
+                                                                  len(identifier_check[delta['A']]),
+                                                                  delta['A'],
+                                                                  delta['B']))
+    print("")
+    print("Document comparison")
+    for delta in results['results']['docid_compare']:
+      print("Found {0}/{1} filenames listed by {2} but not present on filesystem".format(len(delta['delta']),
+                                                                                         len(filename_check[delta['A']]),
+                                                                                         delta['A']))
+  elif format == "json":
+    print json.dumps(results, encoding="utf-8", indent=2)
+
+
+def main():
+  '''
+  -c --config:      optional path to configuration
+  -e --environment: name of environment
+  -f --format:      name of output format
+  -l --log_level:   flag to turn on logging, more means more detailed logging.
+
+  :return: int for sys.exit()
+  '''
+  parser = argparse.ArgumentParser(description='Retrieve identifiers from a CN direct from database.')
+  parser.add_argument('-n', '--node_id',
+                      default=None,
+                      help='Origin Node Identifier for identifiers')
+  parser.add_argument('-x', '--date_start',
+                      default=None,
+                      help='Starting date for records')
+  parser.add_argument('-y', '--date_end',
+                      default=None,
+                      help='Ending date for records')
+  parser.add_argument('-d', '--dest_folder',
+                      default=None,
+                      help="Folder for results, defaults to getpids_ENVIRONMENT_DATE.")
+  parser.add_argument('-H', '--hosts',
+                      default=None,
+                      help='Use specified comma delimited list of nodes, overrides -e')
+  parser.add_argument('-A','--analyze_only',
+                      action='store_true',
+                      default=False,
+                      help="Analyze previously retrieved results (-d required)")
+  args, config = d1_admin_tools.defaultScriptMain(parser)
+
+  dest_folder = args.dest_folder
+  if dest_folder is None:
+    if args.analyze_only:
+      raise ValueError("dest_folder must be specified for analyze_only option.")
+    tnow = datetime.datetime.utcnow()
+    if args.hosts is not None:
+      dest_folder = "getpids_custom_{1}".format(tnow.strftime("%Y%m%d"))
+    else:
+      dest_folder = "getpids_{0}_{1}".format(args.environment, tnow.strftime("%Y%m%d"))
+  if args.analyze_only:
+    return analyzeThis(dest_folder)
+
+  if not os.path.exists(dest_folder):
+    os.makedirs(dest_folder)
+  date_start = None
+  date_end = None
+  if args.date_start is not None:
+    date_start = dateparser.parse(args.date_start)
+    date_str = "None"
+    if date_start is not None:
+      date_str = date_start.strftime(PSQL_DATE_FORMAT)
+    logging.info("date_start '%s' parsed as %s", args.date_start, date_str)
+  if args.date_end is not None:
+    date_end = dateparser.parse(args.date_end)
+    date_str = "None"
+    if date_end is not None:
+      date_str = date_end.strftime(PSQL_DATE_FORMAT)
+    logging.info("date_end '%s' parsed as %s", args.date_end, date_str)
+  hosts = []
+  if args.hosts is not None:
+    hosts = args.hosts.split(',')
+  else:
+    hosts = config.hosts(args.environment)
+
+  results = {"request":{},
+             "results":{}
+             }
+  doGetIdentifiers_nopg(results, hosts, dest_folder, args.node_id, date_start, date_end)
+  doGetDataDocumentList(results, hosts, dest_folder)
+
+  dest_file = os.path.join(dest_folder, RESULTS_FILE)
+
+  with codecs.open(dest_file, mode='wb', encoding='utf-8') as dfile:
+    dfile.write(json.dumps(results, encoding='utf-8'))
+
+  return analyzeThis(dest_folder, format=args.format)
+
+
+if __name__ == "__main__":
+  sys.exit(main())
