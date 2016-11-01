@@ -96,6 +96,7 @@ setup(
              'scripts/d1nodes',
              'scripts/d1facets',
              'scripts/d1nodes',
+             'scripts/d1getpids'
              ],
 
     # To provide executable scripts, use entry points in preference to the
