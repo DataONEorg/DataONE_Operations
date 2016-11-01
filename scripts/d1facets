@@ -7,13 +7,12 @@ List facet values from solr
 import sys
 import logging
 import argparse
-import d1_admin_tools.d1_config
-import pprint
+import d1_admin_tools
 from d1_client import solr_client
 
 def doGetFacets(config, environment, field, core='solr', q='*:*'):
   '''
-      host='cn.dataone.org',
+    host='cn.dataone.org',
     solrBase='/cn/v1/query/solr/',
     persistent=True,
     postHeaders={},
@@ -38,43 +37,29 @@ def doGetFacets(config, environment, field, core='solr', q='*:*'):
   return result
 
 
-
 def main():
-  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
-  parser.add_argument('-c', '--config',
-                      default=d1_admin_tools.d1_config.CONFIG_FILE,
-                      help='Name of configuration file (default = {0}'.format(d1_admin_tools.d1_config.CONFIG_FILE))
+  '''
+  -c --config:      optional path to configuration
+  -e --environment: name of environment
+  -f --format:      name of output format
+  -l --log_level:   flag to turn on logging, more means more detailed logging.
+
+  :return: int for sys.exit()
+  '''
+  parser = argparse.ArgumentParser(description='List solr index facet values for a field.')
   parser.add_argument('-C', '--core',
                       default='solr',
                       help='Name of solr index to use (solr)')
   parser.add_argument('-d', '--delimiter',
                       default=',',
                       help='Delimiter for text output (default = ,)')
-  parser.add_argument('-e', '--environment',
-                      default='production',
-                      help="Name of environment to examine (default = production")
-  parser.add_argument('-f', '--format',
-                      default='text',
-                      help='Output format (text, json, yaml)')
-  parser.add_argument('-F', '--field',
+  parser.add_argument('field',
                       default='nodeId',
                       help='Field to get facet values')
-  parser.add_argument('-l', '--log_level',
-                      action='count',
-                      default=0,
-                      help='Set logging level, multiples for more detailed.')
   parser.add_argument('-q', '--query',
                       default='*:*',
                       help='Query to use')
-  args = parser.parse_args()
-  # Setup logging verbosity
-  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-  level = levels[min(len(levels) - 1, args.log_level)]
-  logging.basicConfig(level=level,
-                      format="%(asctime)s %(levelname)s %(message)s")
-  config = d1_admin_tools.d1_config.D1Configuration()
-  config.load()
-  PP = pprint.PrettyPrinter(indent=2)
+  args, config = d1_admin_tools.defaultScriptMain(parser)
 
   results = doGetFacets(config, args.environment, args.field, args.core, args.query)
 

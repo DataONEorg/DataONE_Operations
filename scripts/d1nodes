@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 """
-Resolve an identifier.
+List nodes in a DataONE environment.
+
 """
 
 import sys

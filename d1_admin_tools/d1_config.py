@@ -99,7 +99,17 @@ class D1Configuration( object ):
     with codecs.open( config_file, 'wb', encoding=ENCODING ) as fp:
       json.dump( self.config, fp, indent=2 )
 
-
+  '''
+  LOGIN_SERVICE = {
+    'production':'https://cilogon.org/?skin=dataone',
+    'stage':'https://cilogon.org/?skin=dataonestage',
+    'stage-2':'https://cilogon.org/?skin=dataonestage2',
+    'sandbox':'https://cilogon.org/?skin=dataonesandbox',
+    'sandbox-2':'https://cilogon.org/?skin=dataonesandbox2',
+    'dev':'https://cilogon.org/?skin=dataonedev',
+    'dev-2':'https://cilogon.org/?skin=dataonedev2',
+  }
+  '''
   def initialize(self):
     self.config = {}
 
@@ -112,6 +122,8 @@ class D1Configuration( object ):
                                                           {'host':'cn-unm-1.dataone.org','base':'/cn', },
                                                           {'host':'cn-orc-1.dataone.org','base':'/cn', },
                                                           ],
+                                                  'login':{'cert':'',
+                                                           'token':''},
                                                   },
                                    'stage': {'primary': {'host':'cn-stage.test.dataone.org', 'base':'/cn', },
                                              'cns': [{'host':'cn-stage-ucsb-1.test.dataone.org', 'base':'/cn', },
