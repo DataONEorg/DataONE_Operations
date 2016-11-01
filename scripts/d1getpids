@@ -9,11 +9,20 @@ content to verify availability.
 
 This script bypasses the DataONE APIs to retrieve identifiers directly from the
 postgres database operating on Coordinating Nodes. Shell access to the CNs and
-a (readonly) postgres account are required.
+a (readonly) postgres account are required. No password is provided for here,
+so access control for ssh is via a key pair, and for postgres via a .pgpass file
+or similar mechanism.
 
 By default, content is placed in a subfolder named getpids_{env}_{date} of the
 current working folder, where env is the name of the environment being examined and
 date is the current date (UTC).
+
+Requires
+
+* d1_admin_tools https://github.com/DataONEorg/DataONE_Operations
+* dateparser https://pypi.python.org/pypi/dateparser
+* fabric http://www.fabfile.org/
+
 '''
 
 import sys
@@ -29,29 +38,55 @@ import codecs
 import json
 from fabric.api import task, execute, run, get
 
+PSQL_READONLY_USER = "dataone_readonly"
 PSQL_DATE_FORMAT="%Y-%m-%dT%H:%M:%S.%f%z"
 RESULTS_FILE = 'results.json'
 ANALYSIS_FILE = 'analysis.json'
 
 
-def tmpFileName(tmp_dir="/tmp/", prefix="", ext="txt"):
+def tmpFileName(tmp_dir="/tmp", prefix="", ext="txt"):
+  '''
+  Returns a temporary file name with a high likelihood of uniqueness.
+
+  :param tmp_dir: Folder to contain the file
+  :param prefix: Prefix for file name
+  :param ext: Extension for file name (not including the .)
+  :return: File name and path relative to tmp_dir.
+  '''
   ts = int(time.time()*100000)
-  return "{0}{1}_{2}.{3}".format(tmp_dir, prefix, ts, ext)
+  return os.path.join(tmp_dir, "{0}_{1}.{2}".format(prefix, ts, ext))
 
+#==================
+#++ Fabric Tasks ++
 
-def runSQLQuery(SQL, dest_file, tmp_file=None):
+def runSQLQuery(SQL, dest_file, tmp_file=None, user=PSQL_READONLY_USER, database='metacat', delimiter=' '):
+  '''
+  Fabric task that executes SQL on postgres and retrieves the resulting output as a file.
+
+  :param SQL: SQL to run, expects a table output
+  :param dest_file: Local file that will contain the results
+  :param tmp_file: Temporary file on remote system. Created if not specified.
+  :return: Nothing
+  '''
   if tmp_file is None:
     tmp_file = tmpFileName("/tmp/", prefix="sql", ext="txt")
-  cmd = "psql -h localhost -U dataone_readonly metacat -P pager=off --single-transaction"
-  cmd += " --no-align -t --field-separator ' ' --quiet"
+  cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + database
+  cmd += " -P pager=off --single-transaction"
+  cmd += " --no-align -t --field-separator '" + delimiter + "' --quiet"
   cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
-  logging.info("Command = %s", cmd)
+  logging.info("PSQL Command = %s", cmd)
   run(cmd)
   get(tmp_file, dest_file)
   run("rm " + tmp_file)
 
 
 def listDataDocuments(dest_file):
+  '''
+  Fabric task to retrieve a list of files managed by metacat on a CN.
+
+  :param dest_file: File to contain results, one filename per line
+  :return: Nothing
+  '''
   tmp_file = tmpFileName("/tmp/", prefix="metacat_files", ext="txt")
   cmd = "ls /var/metacat/documents > {0}".format(tmp_file)
   run(cmd)
@@ -61,15 +96,26 @@ def listDataDocuments(dest_file):
   run("rm " + tmp_file)
 
 
-def doGetIdentifiers_nopg(results, hosts, dest_folder, node_id=None, date_start=None, date_end=None):
-  '''
-  Manually escape input
+#==================
 
-  :param config:
-  :param environment:
-  :param node_id:
-  :param date_start:
-  :param date_end:
+def doGetIdentifiersPSQL(results, hosts, dest_folder, node_id=None, date_start=None, date_end=None):
+  '''
+  Retrieve a space delimited list of:
+
+    PID docid rev series_id
+
+  from the postgres database on each host of hosts. Output is written to a file in dest_folder
+  named identifier_{host}.txt. The file name is recorded in the results disctionary.
+
+  The identifiers returned is limited by the combination of node_id, date_start, and date_end which
+  are ANDed together. At least one of these parameters must be specified.
+
+  :param results: Dictionary of {'request': ,'result': } to contain metadata about this operation.
+                  Modified by this method.
+  :param hosts: List of host names
+  :param node_id: Optional node identifier to match
+  :param date_start: Optional starting date for match
+  :param date_end: Optional ending date for match.
   :return:
   '''
   sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev, systemmetadata.series_id
@@ -103,6 +149,16 @@ WHERE """
 
 
 def doGetDataDocumentList(results, hosts, dest_folder):
+  '''
+  Retrieve a list of files from /var/metacat/data and /var/metacat/documents from each of hosts.
+
+  Output is written to files in dest_folder named data_files_{host}. Each output file contains one entry per line.
+
+  :param results:
+  :param hosts:
+  :param dest_folder:
+  :return:
+  '''
   results['results']['data_documents'] = {}
   for host in hosts:
     dest_file = os.path.join(dest_folder, "data_files_{0}.txt".format(host))
@@ -111,17 +167,29 @@ def doGetDataDocumentList(results, hosts, dest_folder):
 
 
 def listAnotB(A, B):
+  '''
+  Returns a list of elements in A that are not present in B
+
+  :param A: list
+  :param B: list
+  :return: list
+  '''
   A_not_B = []
   row = 0
   for i in A:
     row += 1
     if i not in B:
       A_not_B.append(i)
-      #print ("Row:{0} | {1}".format(row, i))
   return A_not_B
 
 
 def compareIdentifierList(results):
+  '''
+  Compares the identifier list for each host with that for each other host.
+
+  :param results:
+  :return:
+  '''
   logging.info("Comparing identifiers...")
   pids = {}
   hosts = results['results']['identifier_documents'].keys()
@@ -143,6 +211,12 @@ def compareIdentifierList(results):
 
 
 def compareDocIdList(results):
+  '''
+  Compares the docids + rev with available file names
+
+  :param results:
+  :return:
+  '''
   logging.info("Comparing docids...")
   docids = {}
   filenames = {}
@@ -170,6 +244,12 @@ def compareDocIdList(results):
 
 
 def analyzeThis(results_folder, format="text"):
+  '''
+  Given the content retireved from the CNs, performs comparisons, stores and outputs the results
+  :param results_folder:
+  :param format:
+  :return:
+  '''
   results = {}
   with codecs.open(os.path.join(results_folder, RESULTS_FILE), mode='rb', encoding='utf-8') as rfile:
     results = json.load(rfile, encoding='utf-8')
@@ -202,10 +282,21 @@ def analyzeThis(results_folder, format="text"):
 
 def main():
   '''
-  -c --config:      optional path to configuration
-  -e --environment: name of environment
-  -f --format:      name of output format
-  -l --log_level:   flag to turn on logging, more means more detailed logging.
+  The main operation, loads supplied arguments and does the work.
+
+  -A --analyze_only: analyze previously retrieved results
+  -d --dest_folder:  destination folder for results
+  -c --config:       optional path to configuration
+  -e --environment:  name of environment
+  -f --format:       name of output format
+  -h --help:         display some help
+  -H --hosts:        comma delimited list of host names
+  -l --log_level:    flag to turn on logging, more means more detailed logging.
+  -n --node_id:      restrict retrieved identifiers to specified node
+  -x --date_start:   earliest date of retrieved records
+  -y --date_end:     latest date of retrieved records
+
+  Dates are parsed using dateparser, so human strings like "a week ago" are valid.
 
   :return: int for sys.exit()
   '''
@@ -241,7 +332,7 @@ def main():
     else:
       dest_folder = "getpids_{0}_{1}".format(args.environment, tnow.strftime("%Y%m%d"))
   if args.analyze_only:
-    return analyzeThis(dest_folder)
+    return analyzeThis(dest_folder, format=args.format)
 
   if not os.path.exists(dest_folder):
     os.makedirs(dest_folder)
@@ -264,18 +355,14 @@ def main():
     hosts = args.hosts.split(',')
   else:
     hosts = config.hosts(args.environment)
-
   results = {"request":{},
              "results":{}
              }
-  doGetIdentifiers_nopg(results, hosts, dest_folder, args.node_id, date_start, date_end)
+  doGetIdentifiersPSQL(results, hosts, dest_folder, args.node_id, date_start, date_end)
   doGetDataDocumentList(results, hosts, dest_folder)
-
   dest_file = os.path.join(dest_folder, RESULTS_FILE)
-
   with codecs.open(dest_file, mode='wb', encoding='utf-8') as dfile:
     dfile.write(json.dumps(results, encoding='utf-8'))
-
   return analyzeThis(dest_folder, format=args.format)
 
 
