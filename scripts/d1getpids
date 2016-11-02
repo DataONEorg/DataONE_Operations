@@ -170,17 +170,11 @@ def listAnotB(A, B):
   '''
   Returns a list of elements in A that are not present in B
 
-  :param A: list
-  :param B: list
+  :param A: set
+  :param B: set
   :return: list
   '''
-  A_not_B = []
-  row = 0
-  for i in A:
-    row += 1
-    if i not in B:
-      A_not_B.append(i)
-  return A_not_B
+  return list(A.difference(B))
 
 
 def compareIdentifierList(results):
@@ -194,11 +188,13 @@ def compareIdentifierList(results):
   pids = {}
   hosts = results['results']['identifier_documents'].keys()
   for host in hosts:
-    pids[host] = []
+    pids[host] = None
+    tmplist = []
     with open(results['results']['identifier_documents'][host], 'rb') as id_file:
       idreader = csv.reader(id_file, delimiter=' ')
       for row in idreader:
-        pids[host].append(row[0])
+        tmplist.append(row[0])
+    pids[host] = frozenset(tmplist)
   results['results']['identifier_compare'] = []
   for host_A in hosts:
     for host_B in hosts:
@@ -222,16 +218,20 @@ def compareDocIdList(results):
   filenames = {}
   hosts = results['results']['identifier_documents'].keys()
   for host in hosts:
-    docids[host] = []
+    docids[host] = None
+    tmplist = []
     with open(results['results']['identifier_documents'][host], 'rb') as id_file:
       idreader = csv.reader(id_file, delimiter=' ')
       for row in idreader:
-        docids[host].append("{0}.{1}".format(row[1], row[2]))
+        tmplist.append("{0}.{1}".format(row[1], row[2]))
+    docids[host] = frozenset(tmplist)
   for host in hosts:
-    filenames[host] = []
+    filenames[host] = None
+    tmplist = []
     with open(results['results']['data_documents'][host],'rb') as id_file:
       for row in id_file.readlines():
-        filenames[host].append(row.strip())
+        tmplist.append(row.strip())
+    filenames[host] = frozenset(tmplist)
     logging.info("Loaded %d filenames for host %s.", len(filenames[host]), host)
   results['results']['docid_compare'] = []
   for host in hosts:

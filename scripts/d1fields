@@ -1,0 +1,106 @@
+#!/bin/env python
+
+'''
+List facet values from solr
+'''
+
+import os
+import sys
+import logging
+import argparse
+import d1_admin_tools
+import textwrap
+from d1_client import cnclient
+
+
+def doGetFields(base_url, core='solr'):
+  client = cnclient.CoordinatingNodeClient(base_url, capture_response_body=True)
+  response = client.getQueryEngineDescription(core)
+  results = {'base_url': base_url,
+             'fields': [],
+             'xml': client.last_response_body}
+  for qf in response.queryField:
+    f = {'name': qf.name,
+         'description': " ".join(qf.description),
+         'type': qf.type,
+         'searchable': qf.searchable,
+         'returnable': qf.returnable,
+         'sortable': qf.sortable,
+         'multivalued': qf.multivalued,
+         }
+    results['fields'].append(f)
+  return results
+
+
+def main():
+  '''
+  -c --config:      optional path to configuration
+  -e --environment: name of environment
+  -f --format:      name of output format
+  -l --log_level:   flag to turn on logging, more means more detailed logging.
+
+  :return: int for sys.exit()
+  '''
+  defaults = defaults = { 'format': ['text', 'json', 'yaml', 'xml'] }
+  parser = argparse.ArgumentParser(description='List solr index fields for a core.')
+  parser.add_argument('-B', '--base_url',
+                      default=None,
+                      help='Base URL of node to connect with (overrides -e)')
+  parser.add_argument('-C', '--core',
+                      default='solr',
+                      help='Name of solr index to use (solr)')
+  parser.add_argument('-d', '--descriptions',
+                      default=False,
+                      action='store_true',
+                      help='Include descriptions in text output (False)')
+  args, config = d1_admin_tools.defaultScriptMain(parser, arg_defaults=defaults)
+
+  base_url = args.base_url
+  if base_url is None:
+    base_url = config.envPrimaryBaseURL(args.environment)
+
+  results = doGetFields(base_url, args.core)
+
+  format = args.format.lower()
+  if not format in ['text', 'json', 'yaml', 'xml']:
+    format = 'text'
+    logging.warn("Unknown output format requested, using %s", format)
+  if format == 'xml':
+    print results['xml']
+    return 0
+  if format == 'json':
+    import json
+    results.pop('xml', None)
+    print json.dumps(results, encoding='utf-8', indent=2)
+    return 0
+  if format == 'yaml':
+    import yaml
+    results.pop('xml', None)
+    print yaml.safe_dump(results, encoding='utf-8')
+    return 0
+  rows, columns = os.popen('stty size', 'r').read().split()
+  line_width = int(columns)
+
+  line = "{0:<27}{1:<18}{2:<3}{3:<3}".format("Name","Type","S","MV")
+  if args.descriptions:
+    line += " Description"
+    line += " "* (line_width-len(line))
+  print("-"*len(line))
+  print(line)
+  print("-"*len(line))
+  for row in results['fields']:
+    line = "{name:<27}{type:<18}{searchable:<3}{multivalued:<3}".format(**row)
+    if args.descriptions:
+      descr = textwrap.fill(row['description'],width=line_width,
+                            initial_indent=' '*len(line),
+                            subsequent_indent=' '*len(line),
+                            drop_whitespace=True,
+                            replace_whitespace=True)
+      print( line + descr.lstrip())
+    else:
+      print(line)
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
