@@ -196,6 +196,7 @@ if __name__ == "__main__":
       logging.error("The configuration file %s already exists. Rename or remove to initialize.", config_file)
       sys.exit(1)
     logging.info("Initializing config file %s", config_file)
+    os.makedirs(os.path.basename(config_file))
     conf.initialize()
     conf.save(config_file)
     sys.exit(0)
