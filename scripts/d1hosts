@@ -33,12 +33,13 @@ def main():
   '''
   defaults = {'environment': None,
               'format':['csv','json','text']}
-  parser = argparse.ArgumentParser(description='List envrionment host.')
+  parser = argparse.ArgumentParser(description='List envrionment hosts.')
   parser.add_argument('-p', '--primary',
                       default=False,
                       action='store_true',
                       help="List only the primary host(s)")
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
   environments = []
   if args.environment is None:
     environments = config.environments()

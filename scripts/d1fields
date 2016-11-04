@@ -54,6 +54,7 @@ def main():
                       action='store_true',
                       help='Include descriptions in text output (False)')
   args, config = d1_admin_tools.defaultScriptMain(parser, arg_defaults=defaults)
+  logger = logging.getLogger('main')
 
   base_url = args.base_url
   if base_url is None:
@@ -64,7 +65,7 @@ def main():
   format = args.format.lower()
   if not format in ['text', 'json', 'yaml', 'xml']:
     format = 'text'
-    logging.warn("Unknown output format requested, using %s", format)
+    logger.warn("Unknown output format requested, using %s", format)
   if format == 'xml':
     print results['xml']
     return 0

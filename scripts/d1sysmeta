@@ -17,11 +17,12 @@ def getSystemMetadata(client, pid):
   :param pid: Identifier to resolve
   :return: Dictionary mimicking a SystemMetadata structure with addition of error entry
   '''
+  logger = logging.getLogger('main')
   try:
     res = client.getSystemMetadata(pid)
     return dataone_response.DataONEResponse( obj=res )
   except Exception as e:
-    logging.info(e)
+    logger.info(e)
   return dataone_response.DataONEResponse( e )
 
 
@@ -34,7 +35,7 @@ def main():
 
   :return: int for sys.exit()
   '''
-  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser = argparse.ArgumentParser(description='Retrieve SystemMetadata for an object.')
   parser.add_argument('-B', '--baseURL',
                       default="https://cn.dataone.org/cn",
                       help='Base URL of node from which to retrieve system metadata (overrides -e)')
@@ -43,6 +44,7 @@ def main():
   defaults = {'format': ['text', 'json', 'xml'],
               }
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
   pid = args.pid
   base_url = args.baseURL
   client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)

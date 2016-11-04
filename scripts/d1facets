@@ -62,11 +62,12 @@ def main():
   args, config = d1_admin_tools.defaultScriptMain(parser)
 
   results = doGetFacets(config, args.environment, args.field, args.core, args.query)
+  logger = logging.getLogger('main')
 
   format = args.format.lower()
   if not format in ['text', 'json', 'yaml']:
     format = 'text'
-    logging.warn("Unknown output format requested, using %s", format)
+    logger.warn("Unknown output format requested, using %s", format)
   if format == 'json':
     import json
     print json.dumps(results, encoding='utf-8', indent=2)

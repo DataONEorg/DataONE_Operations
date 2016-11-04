@@ -10,13 +10,10 @@ import argparse
 import d1_admin_tools
 from d1_admin_tools import dataone_response
 from d1_client import d1baseclient_2_0
-import datetime
-
 
 #YYYY-MM-DDTHH:MM:SS.mmm+00:00
 DATAONE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
-DATE_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
-
+DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 
 def doListObjects(client, *params, **kvparams):
   #client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
@@ -33,7 +30,7 @@ def main():
 
   :return: int for sys.exit()
   '''
-  parser = argparse.ArgumentParser(description='Call list objects on a CN or MN.')
+  parser = argparse.ArgumentParser(description='List Objects on a CN or MN.')
   parser.add_argument('-B', '--base_url',
                       default=None,
                       help='Base URL of node to connect with (overrides -e)')
@@ -108,7 +105,7 @@ def main():
         if args.only_identifiers:
           print("{pid}".format(**data))
         else:
-          print "{counter:0>6}: {size:<9} {date_modified:<25} {format_id:<45} {pid:<50}".format(**data)
+          print "{counter:0>6}: {size:<9} {date_modified:<31} {format_id:<45} {pid:<50}".format(**data)
         counter += 1
   return 0
 

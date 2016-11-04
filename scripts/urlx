@@ -114,7 +114,7 @@ def doDecode(instr, full_url=False):
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(description='URL encode or decode provided stdin text')
+  parser = argparse.ArgumentParser(description='URL encode or decode input text.')
   parser.add_argument('-l', '--log_level',
                       action='count',
                       default=0,

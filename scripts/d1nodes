@@ -17,10 +17,10 @@ def doListNodes(config, env, node_type='all'):
   returns  dict with {xml}, items:[  ]
   replicate="false" synchronize="false" type="cn" state="up"
   '''
+  logger = logging.getLogger('main')
   client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env),
                                                    api_major=2,
                                                    capture_response_body=True)
-
   nodes = client.listNodes()
   result = {'xml': client.last_response_body,
             'items': []}
@@ -47,23 +47,10 @@ def doListNodes(config, env, node_type='all'):
       result['items'].append(row)
   return result
 
-# synchronize="false" type="cn" state="up"
 
+# synchronize="false" type="cn" state="up"
 def main():
-  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
-  parser.add_argument('-l', '--log_level',
-                      action='count',
-                      default=0,
-                      help='Set logging level, multiples for more detailed.')
-  parser.add_argument('-e', '--environment',
-                      default='production',
-                      help="Name of environment to examine (default = production")
-  parser.add_argument('-c', '--config',
-                      default=d1_admin_tools.d1_config.CONFIG_FILE,
-                      help='Name of configuration file (default = {0}'.format(d1_admin_tools.d1_config.CONFIG_FILE))
-  parser.add_argument('-f', '--format',
-                      default='text',
-                      help='Output format (text, json, yaml)')
+  parser = argparse.ArgumentParser(description='List nodes in an environment.')
   parser.add_argument('-B', '--baseurl',
                       action='store_true',
                       help='Only present base URLs of nodes')
@@ -73,14 +60,9 @@ def main():
   parser.add_argument("-t", '--node_type',
                       default='all',
                       help = "Node type to return, cn = CNs, mn = MNs, all = all nodes (default)")
-  args = parser.parse_args()
-  # Setup logging verbosity
-  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-  level = levels[min(len(levels) - 1, args.log_level)]
-  logging.basicConfig(level=level,
-                      format="%(asctime)s %(levelname)s %(message)s")
-  config = d1_admin_tools.d1_config.D1Configuration()
-  config.load()
+  args, config = d1_admin_tools.defaultScriptMain(parser)
+  logger = logging.getLogger('main')
+
   PP = pprint.PrettyPrinter(indent=2)
   nodes = []
 

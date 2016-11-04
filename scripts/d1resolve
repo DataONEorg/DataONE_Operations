@@ -17,6 +17,7 @@ def resolve(client, pid):
   :param pid: Identifier to resolve
   :return: Dictionary mimicking an objectLocationList with addition of error entry
   '''
+  logger = logging.getLogger('main')
   response = {'error':None,
               'xml': None,
               }
@@ -33,7 +34,7 @@ def resolve(client, pid):
               'preference': unicode(loc.preference) }
       response['objectLocation'].append(oloc)
   except Exception as e:
-    logging.info(e)
+    logger.info(e)
     response['error'] = unicode(e)
   return response
 
@@ -46,8 +47,9 @@ def doResolve(pid, environments, configuration):
   :param configuration: instance of D1Configuration providing lists of environments
   :return: List of dictionaries containing results of the resolve operation in each environment
   '''
+  logger = logging.getLogger('main')
   if len(environments) > 1:
-    logging.warn('Checking all environments...')
+    logger.warn('Checking all environments...')
   results = []
   client = None
   for env in environments:
@@ -57,7 +59,7 @@ def doResolve(pid, environments, configuration):
                                                        capture_response_body=True)
     else:
       client.set_base_url(configuration.envPrimaryBaseURL(env))
-    logging.info("Resolving %s in %s", pid, env)
+    logger.info("Resolving %s in %s", pid, env)
     res = resolve(client, pid)
     results.append({'environment': env,
                     'resolve': resolve(client, pid)})
@@ -74,6 +76,7 @@ def main():
   parser.add_argument('pid',
                       help="Identifier to evaluate")
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
 
   PP = pprint.PrettyPrinter(indent=2)
   environments = []

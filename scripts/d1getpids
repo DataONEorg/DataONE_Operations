@@ -68,13 +68,14 @@ def runSQLQuery(SQL, dest_file, tmp_file=None, user=PSQL_READONLY_USER, database
   :param tmp_file: Temporary file on remote system. Created if not specified.
   :return: Nothing
   '''
+  logger = logging.getLogger('main')
   if tmp_file is None:
     tmp_file = tmpFileName("/tmp/", prefix="sql", ext="txt")
   cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + database
   cmd += " -P pager=off --single-transaction"
   cmd += " --no-align -t --field-separator '" + delimiter + "' --quiet"
   cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
-  logging.info("PSQL Command = %s", cmd)
+  logger.info("PSQL Command = %s", cmd)
   run(cmd)
   get(tmp_file, dest_file)
   run("rm " + tmp_file)
@@ -118,6 +119,7 @@ def doGetIdentifiersPSQL(results, hosts, dest_folder, node_id=None, date_start=N
   :param date_end: Optional ending date for match.
   :return:
   '''
+  logger = logging.getLogger('main')
   sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev, systemmetadata.series_id
 FROM identifier INNER JOIN systemmetadata ON identifier .guid = systemmetadata.guid
 WHERE """
@@ -139,8 +141,7 @@ WHERE """
   where_clause = " AND ".join(conditions)
   SQL = sql_template + where_clause;
   results['request']['SQL'] = SQL
-  logging.info(SQL)
-
+  logger.info(SQL)
   results['results']['identifier_documents'] = {}
   for host in hosts:
     dest_file = os.path.join(dest_folder, "identifiers_{0}.txt".format(host))
@@ -184,7 +185,8 @@ def compareIdentifierList(results):
   :param results:
   :return:
   '''
-  logging.info("Comparing identifiers...")
+  logger = logging.getLogger('main')
+  logger.info("Comparing identifiers...")
   pids = {}
   hosts = results['results']['identifier_documents'].keys()
   for host in hosts:
@@ -198,7 +200,7 @@ def compareIdentifierList(results):
   results['results']['identifier_compare'] = []
   for host_A in hosts:
     for host_B in hosts:
-      logging.info("Comparing {0} - {1}".format(host_A, host_B))
+      logger.info("Comparing {0} - {1}".format(host_A, host_B))
       delta = {"A":host_A,
                "B":host_B,
                "delta":listAnotB(pids[host_A], pids[host_B])}
@@ -213,7 +215,8 @@ def compareDocIdList(results):
   :param results:
   :return:
   '''
-  logging.info("Comparing docids...")
+  logger = logging.getLogger('main')
+  logger.info("Comparing docids...")
   docids = {}
   filenames = {}
   hosts = results['results']['identifier_documents'].keys()
@@ -232,10 +235,10 @@ def compareDocIdList(results):
       for row in id_file.readlines():
         tmplist.append(row.strip())
     filenames[host] = frozenset(tmplist)
-    logging.info("Loaded %d filenames for host %s.", len(filenames[host]), host)
+    logger.info("Loaded %d filenames for host %s.", len(filenames[host]), host)
   results['results']['docid_compare'] = []
   for host in hosts:
-    logging.info("Comparing docids with filesystem for host {0}".format(host))
+    logger.info("Comparing docids with filesystem for host {0}".format(host))
     delta = {'A': host,
              'B': 'files',
              'delta': listAnotB(docids[host], filenames[host])}
@@ -321,6 +324,7 @@ def main():
                       default=False,
                       help="Analyze previously retrieved results (-d required)")
   args, config = d1_admin_tools.defaultScriptMain(parser)
+  logger = logging.getLogger('main')
 
   dest_folder = args.dest_folder
   if dest_folder is None:
@@ -343,13 +347,13 @@ def main():
     date_str = "None"
     if date_start is not None:
       date_str = date_start.strftime(PSQL_DATE_FORMAT)
-    logging.info("date_start '%s' parsed as %s", args.date_start, date_str)
+    logger.info("date_start '%s' parsed as %s", args.date_start, date_str)
   if args.date_end is not None:
     date_end = dateparser.parse(args.date_end)
     date_str = "None"
     if date_end is not None:
       date_str = date_end.strftime(PSQL_DATE_FORMAT)
-    logging.info("date_end '%s' parsed as %s", args.date_end, date_str)
+    logger.info("date_end '%s' parsed as %s", args.date_end, date_str)
   hosts = []
   if args.hosts is not None:
     hosts = args.hosts.split(',')
