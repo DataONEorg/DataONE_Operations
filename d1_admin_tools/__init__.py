@@ -4,6 +4,32 @@
 
 import logging
 import d1_config
+import dateparser
+from pytz import timezone
+
+
+def textToDateTime(txt, default_tz='UTC'):
+  logger = logging.getLogger('main')
+  d = dateparser.parse(txt, settings={'RETURN_AS_TIMEZONE_AWARE': True})
+  if d is None:
+    logger.error("Unable to convert '%s' to a date time.", txt)
+    return d
+  if d.tzinfo is None or d.tzinfo.utcoffset(d) is None:
+    logger.warn('No timezone information specified, assuming UTC')
+    return d.replace(tzinfo = timezone('UTC'))
+  return d
+
+
+def setupLogger(name, level=logging.WARN):
+  formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s',
+                                datefmt='%Y%m%dT%H%M%S.000%z')
+  handler = logging.StreamHandler()
+  handler.setFormatter(formatter)
+  logger = logging.getLogger(name)
+  logger.setLevel(level)
+  logger.addHandler(handler)
+  logger.propagate = False
+  return logger
 
 
 def defaultScriptMain(parser, arg_defaults=None):
@@ -47,8 +73,8 @@ def defaultScriptMain(parser, arg_defaults=None):
   # Setup logging verbosity
   levels = [logging.WARNING, logging.INFO, logging.DEBUG]
   level = levels[min(len(levels) - 1, args.log_level)]
-  logging.basicConfig(level=level,
-                      format="%(asctime)s %(levelname)s %(message)s")
+  logger = setupLogger('main', level=level)
+  logger.info("Logging initialized at level %d", level)
   config = d1_config.D1Configuration()
   config.load()
   return args, config

@@ -11,12 +11,15 @@ import d1_admin_tools
 from d1_admin_tools import dataone_response
 from d1_client import d1baseclient_2_0
 import datetime
-import dateparser
 
+
+#YYYY-MM-DDTHH:MM:SS.mmm+00:00
+DATAONE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%S+00:00"
 
-def doListObjects(base_url, *params, **kvparams):
-  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+
+def doListObjects(client, *params, **kvparams):
+  #client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
   response = client.listObjects(*params, **kvparams)
   return dataone_response.DataONEResponse( obj=response )
 
@@ -44,30 +47,53 @@ def main():
   parser.add_argument('-s', '--start_index',
                       default=0,
                       help='Zero based index of first entry')
+  parser.add_argument('-I','--only_identifiers',
+                      action='store_true',
+                      default=False,
+                      help='Only output the identifiers.')
   parser.add_argument('-C', '--max_records',
                       default=5,
                       help='Maximum number of entries to retrieve.')
+  parser.add_argument('-x', '--date_start',
+                      default=None,
+                      help='Earliest modified date for records.')
+  parser.add_argument('-y', '--date_end',
+                      default=None,
+                      help='Most recent modified date for records.')
   args, config = d1_admin_tools.defaultScriptMain(parser)
+  logger = logging.getLogger('main')
   base_url = args.base_url
   if base_url is None:
     base_url = config.envPrimaryBaseURL(args.environment)
-  logging.info("Base URL = %s", base_url)
+  logger.info("Base URL = %s", base_url)
   n_retrieved = 0
+  date_start = None
+  date_end = None
+  if args.date_start is not None:
+    date_start = d1_admin_tools.textToDateTime(args.date_start)
+    logger.info("date_start '%s' parsed as %s", args.date_start, str(date_start))
+  if args.date_end is not None:
+    date_end = d1_admin_tools.textToDateTime(args.date_end)
+    logger.info("date_end '%s' parsed as %s", args.date_end, str(date_end))
   if int(args.page_size) > int(args.max_records):
     args.page_size = int(args.max_records)
   max_to_retrieve = int(args.max_records)
   start_index = args.start_index
   total_records = -1
   counter = start_index
+  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
   while n_retrieved < max_to_retrieve:
-    res = doListObjects(base_url,
+    res = doListObjects(client,
                         count = args.page_size,
-                        start = start_index)
+                        start = start_index,
+                        fromDate=date_start,
+                        toDate=date_end)
+    if total_records < 0:
+      logger.info("Total matching records = %d", res.content.total)
     if total_records < 0:
       total_records = int(res.content.total)
       if max_to_retrieve > total_records:
         max_to_retrieve = total_records
-
     n_retrieved += res.content.count
     start_index = res.content.start + res.content.count
     if args.format == 'xml':
@@ -79,7 +105,10 @@ def main():
                 'date_modified': entry.dateSysMetadataModified.strftime(DATE_FORMAT),
                 'pid': entry.identifier.value(),
                 'format_id':entry.formatId}
-        print "{counter:0>6}: {size:<9} {date_modified:<25} {pid:<50} {format_id}".format(**data)
+        if args.only_identifiers:
+          print("{pid}".format(**data))
+        else:
+          print "{counter:0>6}: {size:<9} {date_modified:<25} {format_id:<45} {pid:<50}".format(**data)
         counter += 1
   return 0
 
