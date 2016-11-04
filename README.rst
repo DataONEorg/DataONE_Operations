@@ -58,13 +58,16 @@ The Scripts
 All scripts are meant to be run from a BASH command line (untested on windows), send output to stdout.
 Output in text, json, xml is generally supported.
 
-* ``d1hosts  `` List DataONE CNs in an environment.
+* ``d1hosts`` List DataONE CNs in an environment.
 * ``d1resolve`` Resolve an identifier.
 * ``d1sysmeta`` Retrieve system metadata given an identifier.
-* ``d1nodes  `` Show the list of nodes in an environment.
-* ``d1fields `` Retrieves a list of fields from the specified solr core.
-* ``d1facets `` Retrieves values for a solr field in the specified solr core.
+* ``d1nodes`` Show the list of nodes in an environment.
+* ``d1fields`` Retrieves a list of fields from the specified solr core.
+* ``d1facets`` Retrieves values for a solr field in the specified solr core.
 * ``d1getpids`` Retrieves identifiers from metacat postgres and checks file system consistency.
+* ``d1listobjects`` Run listObjects against a node
+* ``urlx`` URL encode / decode stdin or string parameter
+
 
 
 .. _Wiki: https://github.com/DataONEorg/DataONE_Operations/wiki

@@ -18,11 +18,13 @@ def resolve(client, pid):
   :return: Dictionary mimicking an objectLocationList with addition of error entry
   '''
   logger = logging.getLogger('main')
-  response = {'error':None,
+  response = {'status':{},
               'xml': None,
               }
   try:
     obj_locs = client.resolve(pid)
+    response['status']['msg'] = 'OK'
+    response['status']['code'] = client.status_code
     response['xml'] = client.last_response_body #dom.toprettyxml(indent="  ")
     response['identifier'] = unicode(obj_locs.identifier.value())
     response['objectLocation'] = []
@@ -35,7 +37,8 @@ def resolve(client, pid):
       response['objectLocation'].append(oloc)
   except Exception as e:
     logger.info(e)
-    response['error'] = unicode(e)
+    response['status']['msg'] = e.description
+    response['status']['code'] = e.errorCode
   return response
 
 

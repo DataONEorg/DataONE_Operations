@@ -92,6 +92,7 @@ def main():
       if max_to_retrieve > total_records:
         max_to_retrieve = total_records
     n_retrieved += res.content.count
+    logger.info("Retrieved: %d", n_retrieved)
     start_index = res.content.start + res.content.count
     if args.format == 'xml':
       print res.asXML()
