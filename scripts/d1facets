@@ -76,7 +76,7 @@ def main():
     print yaml.safe_dump(results, encoding='utf-8')
     return 0
   for row in results['values']:
-    print("{0}{1}{2}".format(row[0], args.delimiter, row[1]))
+    print(u"{0}{1}{2}".format(row[0], args.delimiter, row[1]).encode('utf-8'))
   return 0
 
 
