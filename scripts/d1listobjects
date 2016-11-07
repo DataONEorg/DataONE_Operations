@@ -9,6 +9,7 @@ import logging
 import argparse
 import d1_admin_tools
 from d1_admin_tools import dataone_response
+from d1_client import d1baseclient_1_1
 from d1_client import d1baseclient_2_0
 
 #YYYY-MM-DDTHH:MM:SS.mmm+00:00
@@ -57,8 +58,14 @@ def main():
   parser.add_argument('-y', '--date_end',
                       default=None,
                       help='Most recent modified date for records.')
+  parser.add_argument('-V', '--api_version',
+                      default="2",
+                      help='API version to use for request (default = "2")')
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')
+  if args.api_version not in ["1", "2"]:
+    logger.error("API version must be '1' or '2', not '%s'", args.api_version)
+    return 1
   base_url = args.base_url
   if base_url is None:
     base_url = config.envPrimaryBaseURL(args.environment)
@@ -78,7 +85,11 @@ def main():
   start_index = args.start_index
   total_records = -1
   counter = start_index
-  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+  client = None
+  if args.api_version == '2':
+    client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+  else:
+    client = d1baseclient_1_1.DataONEBaseClient_1_1(base_url, capture_response_body=True)
   while n_retrieved < max_to_retrieve:
     res = doListObjects(client,
                         count = args.page_size,
