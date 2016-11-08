@@ -1,0 +1,84 @@
+#!/bin/env python
+
+'''
+Delete an entry from a DataONE environment.
+
+This operation should be used with caution and only when requested by a Member Node operator and there is a
+good reason to delete the content.
+
+The delete operation can only be run by a user authenticated as a CN administrator. A successful completion of the
+operation will remove all copies of the content (including replicas), and remove the entry from the search index. The
+identifier will remain in the system and can not be reused.
+
+'''
+import sys
+import os
+import logging
+import argparse
+import pprint
+import d1_admin_tools
+from d1_admin_tools import operations
+from d1_client import cnclient_2_0
+
+
+def presentBefore(environment, pid, res):
+  print("Request to delete identifier {0} from the {1} environment".format(pid, environment))
+  print("Resolve status before delete:")
+  pprint.pprint(res['before'], indent=2)
+
+
+def doDelete(client, pid):
+  affirmation = raw_input("Please confirm DELETE (yes or no):")
+  if affirmation != 'yes':
+    raise ValueError("Terminating DELETE request.")
+  results = {}
+  logging.warn("DELETING: {0}", pid)
+  res = client.deleteObjectResponse(pid)
+  results['delete'] = {'result': client._read_and_capture(res),
+                       'status': client.status_code}
+  return results
+
+
+def main():
+  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser.add_argument('-E', '--certificate',
+                      default=None,
+                      help='Certificate to authenticate request.')
+  parser.add_argument('pid',
+                      help="Identifier to evaluate")
+  args, config = d1_admin_tools.defaultScriptMain(parser)
+  logger = logging.getLogger('main')
+
+  #if not os.path.exists(args.certificate):
+  #  logger.error("Certificate not found: %s", args.certificate)
+  #  return 1
+
+  results = {}
+  results['pid'] = args.pid
+  results['environment'] = args.environment
+  base_url = config.envPrimaryBaseURL(args.environment)
+  client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
+                                                   api_major=2,
+                                                   capture_response_body=True,
+                                                   cert_path=args.certificate)
+  logging.info("Resolving identifier before delete: %s", args.pid)
+  results['before'] = operations.resolve(client, args.pid)
+  presentBefore(results)
+
+  print("About to DELETE content for identifier {0} from the {1} environment.")
+  results['delete'] = doDelete(client, args.pid)
+  if results['delete']['status'] == 200:
+    logger.info("SUCCESS: Identifier %s deleted from the %s environment.", args.pid, args.environment)
+
+  logging.info("Resolving identifier after delete: %s", args.pid)
+  results['after'] = operations.resolve(client, args.pid)
+  print("Return from delete operation:")
+  pprint.pprint(results['delete'], indent=2)
+
+  print("Resolve results after delete.")
+  pprint.pprint(results['after'], indent=2)
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

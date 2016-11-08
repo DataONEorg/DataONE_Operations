@@ -1,8 +1,12 @@
 """
 
 """
-
+import sys
+import os
 import logging
+import logging.handlers
+import atexit
+import datetime
 import d1_config
 import dateparser
 from pytz import timezone
@@ -20,16 +24,44 @@ def textToDateTime(txt, default_tz='UTC'):
   return d
 
 
-def setupLogger(name, level=logging.WARN):
-  formatter = logging.Formatter(fmt='%(asctime)s %(levelname)s: %(message)s',
-                                datefmt='%Y%m%dT%H%M%S.000%z')
-  handler = logging.StreamHandler()
-  handler.setFormatter(formatter)
-  logger = logging.getLogger(name)
-  logger.setLevel(level)
-  logger.addHandler(handler)
-  logger.propagate = False
-  return logger
+class LogFormatter(logging.Formatter):
+  converter = datetime.datetime.fromtimestamp
+  def formatTime(self, record, datefmt=None):
+    ct = self.converter(record.created)
+    if datefmt:
+      s = ct.strftime(datefmt)
+    else:
+      t = ct.strftime("%Y-%m-%d %H:%M:%S")
+      s = "%s,%03d" % (t, record.msecs)
+    return s
+
+
+def exitMessage(name):
+  logging.info("====== END:%s ======", name)
+
+
+def setupLogger(name, level=logging.WARN, log_file=None, file_log_level=logging.INFO):
+  logger = logging.getLogger('')
+  for handler in logger.handlers:
+    logger.removeHandler(handler)
+  logger.setLevel(logging.DEBUG)
+  formatter = LogFormatter(fmt='%(asctime)s %(name)s %(levelname)s: %(message)s',
+                           datefmt='%Y%m%dT%H%M%S.%f%z')
+  if not log_file is None:
+    l1 = logging.handlers.TimedRotatingFileHandler(filename=log_file,
+                                                   when='D',
+                                                   interval=1,
+                                                   utc=False,
+                                                   encoding='utf-8')
+    l1.setFormatter(formatter)
+    l1.setLevel(file_log_level)
+    logger.addHandler(l1)
+    logging.info("====== START:%s ======", name)
+    atexit.register(exitMessage, name)
+  l2 = logging.StreamHandler()
+  l2.setFormatter(formatter)
+  l2.setLevel(level)
+  logger.addHandler(l2)
 
 
 def defaultScriptMain(parser, arg_defaults=None):
@@ -69,13 +101,17 @@ def defaultScriptMain(parser, arg_defaults=None):
                       action='count',
                       default=defaults['log_level'],
                       help='Set logging level, multiples for more detailed.')
+  command = " ".join(sys.argv)
   args = parser.parse_args()
   # Setup logging verbosity
   levels = [logging.WARNING, logging.INFO, logging.DEBUG]
   level = levels[min(len(levels) - 1, args.log_level)]
-  logger = setupLogger('main', level=level)
-  logger.info("Logging initialized at level %d", level)
   config = d1_config.D1Configuration()
   config.load()
+  app_name = os.path.basename(sys.argv[0])
+  log_file = os.path.join(config.getLogFolder(args.environment), app_name) + ".log"
+  setupLogger(app_name, level=level, log_file=log_file, file_log_level=logging.INFO)
+  logging.info("Logging initialized at level %s", logging.getLevelName(level))
+  logging.info(command)
   return args, config
 

@@ -22,6 +22,7 @@ class D1Configuration( object ):
   def __init__(self):
     self._L = logging.getLogger( self.__class__.__name__)
     self.config = {}
+    self.config_folder = CONFIG_FOLDER
 
 
   def environments(self):
@@ -90,7 +91,24 @@ class D1Configuration( object ):
     return res
 
 
+  def getLogFolder(self, environment):
+    '''
+    Returns an environment specific folder to contain logs.
+
+    Defaults to a folder "log" under the folder from which the config was loaded. By
+    default, this is: ${HOME}/.dataone/log
+
+    :param environment:
+    :return: file path for the log folder
+    '''
+    log_folder = os.path.join(self.config_folder, "log")
+    if not os.path.exists(log_folder):
+      os.makedirs(log_folder)
+    return log_folder
+
+
   def load(self, config_file=CONFIG_FILE):
+    self.config_folder = os.path.dirname(config_file)
     with codecs.open( config_file, 'rb', encoding=ENCODING ) as fp:
       self.config = json.load(fp)
 
@@ -99,17 +117,7 @@ class D1Configuration( object ):
     with codecs.open( config_file, 'wb', encoding=ENCODING ) as fp:
       json.dump( self.config, fp, indent=2 )
 
-  '''
-  LOGIN_SERVICE = {
-    'production':'https://cilogon.org/?skin=dataone',
-    'stage':'https://cilogon.org/?skin=dataonestage',
-    'stage-2':'https://cilogon.org/?skin=dataonestage2',
-    'sandbox':'https://cilogon.org/?skin=dataonesandbox',
-    'sandbox-2':'https://cilogon.org/?skin=dataonesandbox2',
-    'dev':'https://cilogon.org/?skin=dataonedev',
-    'dev-2':'https://cilogon.org/?skin=dataonedev2',
-  }
-  '''
+
   def initialize(self):
     self.config = {}
 
@@ -122,7 +130,7 @@ class D1Configuration( object ):
                                                           {'host':'cn-unm-1.dataone.org','base':'/cn', },
                                                           {'host':'cn-orc-1.dataone.org','base':'/cn', },
                                                           ],
-                                                  'login':{'cert':'',
+                                                  'login':{'cert':'https://cilogon.org/?skin=dataone',
                                                            'token':''},
                                                   },
                                    'stage': {'primary': {'host':'cn-stage.test.dataone.org', 'base':'/cn', },
@@ -130,31 +138,43 @@ class D1Configuration( object ):
                                                      {'host':'cn-stage-orc-1.test.dataone.org', 'base':'/cn', },
                                                      {'host':'cn-stage-unm-1.test.dataone.org', 'base':'/cn', },
                                                      ],
+                                             'login': {'cert': 'https://cilogon.org/?skin=dataonestage',
+                                                       'token': ''},
                                              },
                                    'stage-2': {'primary': {'host':'cn-stage-2.test.dataone.org', 'base':'/cn', },
                                                'cns': [{'host':'cn-stage-unm-2.test.dataone.org', 'base':'/cn', },
                                                        ],
+                                               'login': {'cert': 'https://cilogon.org/?skin=dataonestage2',
+                                                         'token': ''},
                                                },
                                    'sandbox': {'primary': {'host':'cn-sandbox.test.dataone.org', 'base':'/cn', },
                                                'cns': [{'host':'cn-sandbox-ucsb-1.test.dataone.org', 'base':'/cn', },
                                                        {'host':'cn-sandbox-orc-1.test.dataone.org', 'base':'/cn', },
                                                        {'host':'cn-sandbox-unm-1.test.dataone.org', 'base':'/cn', },
                                                        ],
+                                               'login': {'cert': 'https://cilogon.org/?skin=dataonesandbox',
+                                                         'token': ''},
                                                },
                                    'sandbox-2': {'primary': {'host':'cn-sandbox-2.test.dataone.org', 'base':'/cn', },
                                                  'cns': [{'host':'cn-sandbox-ucsb-2.test.dataone.org', 'base':'/cn', },
                                                          ],
+                                                 'login': {'cert': 'https://cilogon.org/?skin=dataonesandbox2',
+                                                           'token': ''},
                                                  },
                                    'dev': {'primary': {'host':'cn-dev.test.dataone.org', 'base':'/cn', },
                                            'cns': [{'host':'cn-dev-ucsb-1.test.dataone.org', 'base':'/cn', },
                                                    {'host':'cn-dev-orc-1.test.dataone.org', 'base':'/cn', },
                                                    {'host':'cn-dev-unm-1.test.dataone.org', 'base':'/cn', },
                                                    ],
+                                           'login': {'cert': 'https://cilogon.org/?skin=dataonedev',
+                                                     'token': ''},
                                            },
                                    'dev-2': {'primary': {'host':'cn-dev-2.test.dataone.org', 'base':'/cn', },
                                              'cns': [{'host':'cn-dev-ucsb-2.test.dataone.org', 'base':'/cn', },
                                                      {'host':'cn-dev-unm-2.test.dataone.org', 'base':'/cn', },
                                                      ],
+                                             'login': {'cert': 'https://cilogon.org/?skin=dataonedev2',
+                                                       'token': ''},
                                              },
                                    }
     # A postgres username that is allowedread only access to the CN database (when logged into CN only

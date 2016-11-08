@@ -6,40 +6,9 @@ Resolve an identifier.
 import logging
 import argparse
 import d1_admin_tools
+from d1_admin_tools import operations
 import pprint
 from d1_client import cnclient_2_0
-
-
-def resolve(client, pid):
-  ''' Resolve the provided identifier in the specified environment
-
-  :param client: An instance of CoordinatingNodeClient
-  :param pid: Identifier to resolve
-  :return: Dictionary mimicking an objectLocationList with addition of error entry
-  '''
-  logger = logging.getLogger('main')
-  response = {'status':{},
-              'xml': None,
-              }
-  try:
-    obj_locs = client.resolve(pid)
-    response['status']['msg'] = 'OK'
-    response['status']['code'] = client.status_code
-    response['xml'] = client.last_response_body #dom.toprettyxml(indent="  ")
-    response['identifier'] = unicode(obj_locs.identifier.value())
-    response['objectLocation'] = []
-    for loc in obj_locs.objectLocation:
-      oloc = {'url': unicode(loc.url),
-              'nodeIdentifier': unicode(loc.nodeIdentifier.value()),
-              'baseURL': unicode(loc.baseURL),
-              'version': map(unicode, loc.version),
-              'preference': unicode(loc.preference) }
-      response['objectLocation'].append(oloc)
-  except Exception as e:
-    logger.info(e)
-    response['status']['msg'] = e.description
-    response['status']['code'] = e.errorCode
-  return response
 
 
 def doResolve(pid, environments, configuration):
@@ -63,9 +32,10 @@ def doResolve(pid, environments, configuration):
     else:
       client.set_base_url(configuration.envPrimaryBaseURL(env))
     logger.info("Resolving %s in %s", pid, env)
-    res = resolve(client, pid)
+    res = operations.resolve(client, pid)
     results.append({'environment': env,
-                    'resolve': resolve(client, pid)})
+                    'resolve': res,
+                    })
   return results
 
 

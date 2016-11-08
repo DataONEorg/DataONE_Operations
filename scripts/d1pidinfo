@@ -2,69 +2,105 @@
 '''
 Check for the presences of an identifier on the coordinating nodes for an envronment.
 
-export CN="cn-sandbox-ucsb-1.test.dataone.org"
-export HOSTS="cn-sandbox-ucsb-1.test.dataone.org,cn-sandbox-unm-1.test.dataone.org,cn-sandbox-orc-1.test.dataone.org"
-
-fab -I -H${CN} -f d1_pid_presence.py
-
-
-getPIDdocID:dc9a6703-497a-4891-897f-b6ec08c657802-180_2_Nanno_neg.rdf
-
-autogen.2016081114450596136
-
-d1_pid_presence -E environment -V verbosity PID
+1. is the system metadata retrievable?
+2. is the PID resolvable using resolve()
+3. is the content retrievable from the resolved locations?
+4. if the content is (metadata or ORE) and not archived, is it in the search index?
 
 '''
 
+
 import os
-import yaml
-import argparse
+import sys
 import logging
-from fabric.api import hide, run, sudo, put, parallel, get, env, task, hosts, settings
-from fabric.contrib import files as fabfiles
+import argparse
+import d1_admin_tools
+from d1_client import cnclient_2_0
+#from fabric.api import hide, run, sudo, put, parallel, get, env, task, hosts, settings
+#from fabric.contrib import files as fabfiles
 
-ENVIRONMENTS={'production':{'primary':'cn.dataone.org',
-                            'cns': ['cn-ucsb-1.dataone.org',
-                                    'cn-unm-1.dataone.org',
-                                    'cn-orc-1.dataone.org',
-                                    ],
-                            },
-              'stage':{'primary':'cn-stage.test.dataone.org',
-                       'cns': ['cn-stage-ucsb-1.test.dataone.org',
-                               'cn-stage-orc-1.test.dataone.org',
-                               'cn-stage-unm-1.test.dataone.org',
-                               ],
-                       },
-              'stage-2': {'primary':'cn-stage-2.test.dataone.org',
-                          'cns': ['cn-stage-unm-2.test.dataone.org',
-                                 ],
-                          },
-              'sandbox': {'primary':'cn-sandbox.test.dataone.org',
-                          'cns': ['cn-sandbox-ucsb-1.test.dataone.org',
-                                  'cn-sandbox-orc-1.test.dataone.org',
-                                  'cn-sandbox-unm-1.test.dataone.org',
-                                 ],
-                       },
-              'sandbox-2':{'primary':'cn-sandbox-2.test.dataone.org',
-                           'cns': ['cn-sandbox-ucsb-2.test.dataone.org',
-                                  ],
-                       },
-              'dev':{'primary':'cn-dev.test.dataone.org',
-                       'cns': ['cn-dev-ucsb-1.test.dataone.org',
-                               'cn-dev-orc-1.test.dataone.org',
-                               'cn-dev-unm-1.test.dataone.org',
-                               ],
-                       },
-              'dev-2':{'primary':'cn-dev-2.test.dataone.org',
-                       'cns': ['cn-dev-ucsb-2.test.dataone.org',
-                               'cn-dev-unm-2.test.dataone.org',
-                               ],
-                       },
-              }
+
+def sysmetaToText(sysmeta, f=sys.stdout):
+  '''
+
+  :param sysmeta:
+  :return:
+  '''
+  pass
 
 
 
-DATADIR = "/var/metacat/data"
+class D1PIDInfo(object):
+
+  def __init__(self, pid, base_urls):
+    '''
+    :param pid: identifier to examine
+    :param base_urls: list of CN baseURLs. First entry should be the RR DNS entry.
+    '''
+    self._L = logging.getLogger(self.__class__.__name__)
+    self.pid = pid
+    self.base_urls = base_urls
+    self.client = None
+    self.sysmeta = []
+    self.resolve = []
+
+
+  def _createClient(self, base_url, force_new=False):
+    if self.client is not None:
+      if self.client.base_url == base_url:
+        if not force_new:
+          return
+    self._L.info("Creating V2 CN client for baseURL %s", base_url)
+    self.client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
+                                                          api_major=2,
+                                                          capture_response_body=True)
+
+
+  def _getBaseUrls(self, primary_only=True):
+    urls = []
+    if primary_only:
+      urls.append(self.base_urls)[0]
+    else
+      urls = self.base_urls[1:]
+    return urls
+
+
+  def getSystemMetadata(self, primary_only=True):
+    self.sysmeta = []
+    urls = self._getBaseUrls(primary_only)
+    for base_url in urls:
+      self._L.info("Retrieving sys meta from %s", base_url)
+      self._createClient(base_url)
+      res = {'object': self.client.getSystemMetadata( self.pid ),
+             }
+      res['status'] = self.client.status_code
+      self.sysmeta.append(res)
+
+
+  def getResolve(self, primary_only=True):
+    self.resolve = []
+    urls = self._getBaseUrls(primary_only)
+    for base_url in urls:
+      self._L.info("Resolving from from %s", base_url)
+      self._createClient(base_url)
+      res = {'object': self.client.resolve( self.pid ),
+             }
+      res['status'] = self.client.status_code
+      self.resolve.append(res)
+
+
+  def testGetObject(self, evaluate_checksum=False):
+    pass
+
+
+  def checkSearchIndex(self):
+    pass
+
+
+  def asText(self, outf = sys.stdout):
+    outf.write("Not Implemented...")
+
+
 
 accumulator = {'data':{},
                'files':{},
@@ -175,25 +211,13 @@ docid: {docid}""".format(**accumulator['data']['data'])
 
 def main():
   parser = argparse.ArgumentParser(description='Inspect PID in a DataONE environment.')
-  parser.add_argument('-l', '--log_level',
-                      action='count',
-                      default=0,
-                      help='Set logging level, multiples for more detailed.')
-  parser.add_argument('-e', '--environment',
-                      default='dev',
-                      help="Name of environment to examine ({0})".format(", ".join(ENVIRONMENTS.keys())))
   parser.add_argument('-p', '--per_node',
                       action="store_true",
                       help="Show per node info for PID")
   parser.add_argument('pid',
                       help="Identifier to evaluate")
-  args = parser.parse_args()
-
-  # Setup logging verbosity
-  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
-  level = levels[min(len(levels) - 1, args.log_level)]
-  logging.basicConfig(level=level,
-                      format="%(asctime)s %(levelname)s %(message)s")
+  args, config = d1_admin_tools.defaultScriptMain(parser)
+  logger = logging.getLogger('main')
 
   environment = args.environment
   pid = args.pid
@@ -213,4 +237,4 @@ def main():
 
 
 if __name__ == "__main__":
-  main()
+  sys.exit(main())

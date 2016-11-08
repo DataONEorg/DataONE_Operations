@@ -60,9 +60,9 @@ def main():
                       default='*:*',
                       help='Query to use')
   args, config = d1_admin_tools.defaultScriptMain(parser)
+  logger = logging.getLogger('main')
 
   results = doGetFacets(config, args.environment, args.field, args.core, args.query)
-  logger = logging.getLogger('main')
 
   format = args.format.lower()
   if not format in ['text', 'json', 'yaml']:
