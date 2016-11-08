@@ -10,6 +10,18 @@ The delete operation can only be run by a user authenticated as a CN administrat
 operation will remove all copies of the content (including replicas), and remove the entry from the search index. The
 identifier will remain in the system and can not be reused.
 
+TODO: investigate why successful delete in production did not clear the entry form the search index.
+
+cn-orc-1:/var/log/dataone/index$ grep -r "seadva-e056e535-da57-40c0-90c1-c2e55d2ec573" *
+cn-index-generator-daemon.log:[ INFO] 2016-11-08 16:07:24,382 (IndexTaskGeneratorEntryListener:entryRemoved:133) REMOVE EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.10:[ INFO] 2016-09-25 00:22:54,467 (IndexTaskGeneratorEntryListener:entryAdded:100) ADD EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.10:[ INFO] 2016-09-25 00:22:54,468 (IndexTaskGeneratorEntryListener:entryAdded:108) Processing add event index task for pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.10:[ INFO] 2016-09-25 00:22:55,257 (IndexTaskGeneratorEntryListener:entryRemoved:133) REMOVE EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.6:[ INFO] 2016-09-29 23:01:42,612 (IndexTaskGeneratorEntryListener:entryAdded:100) ADD EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.6:[ INFO] 2016-09-29 23:01:42,612 (IndexTaskGeneratorEntryListener:entryAdded:108) Processing add event index task for pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.6:[ INFO] 2016-09-29 23:02:16,284 (IndexTaskGeneratorEntryListener:entryUpdated:87) UPDATE EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+cn-index-generator-daemon.log.6:[ INFO] 2016-09-29 23:02:19,286 (IndexTaskGeneratorEntryListener:entryUpdated:87) UPDATE EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573
+
 '''
 import sys
 import os
@@ -32,10 +44,10 @@ def doDelete(client, pid):
   if affirmation != 'yes':
     raise ValueError("Terminating DELETE request.")
   results = {}
-  logging.warn("DELETING: {0}", pid)
+  logging.warn("DELETE: %s", pid)
   res = client.deleteObjectResponse(pid)
-  results['delete'] = {'result': client._read_and_capture(res),
-                       'status': client.status_code}
+  results = {'result': client._read_and_capture(res),
+             'status': client.status_code}
   return results
 
 
@@ -45,7 +57,7 @@ def main():
                       default=None,
                       help='Certificate to authenticate request.')
   parser.add_argument('pid',
-                      help="Identifier to evaluate")
+                      help="Identifier to delete")
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')
 
@@ -63,19 +75,22 @@ def main():
                                                    cert_path=args.certificate)
   logging.info("Resolving identifier before delete: %s", args.pid)
   results['before'] = operations.resolve(client, args.pid)
-  presentBefore(results)
+  presentBefore(args.environment, args.pid, results)
 
-  print("About to DELETE content for identifier {0} from the {1} environment.")
+  print("")
+  print("About to DELETE content for identifier {0} from the {1} environment.".format(args.pid, args.environment))
   results['delete'] = doDelete(client, args.pid)
   if results['delete']['status'] == 200:
     logger.info("SUCCESS: Identifier %s deleted from the %s environment.", args.pid, args.environment)
 
   logging.info("Resolving identifier after delete: %s", args.pid)
   results['after'] = operations.resolve(client, args.pid)
+  print("")
   print("Return from delete operation:")
   pprint.pprint(results['delete'], indent=2)
 
-  print("Resolve results after delete.")
+  print("")
+  print("Resolve results after delete:")
   pprint.pprint(results['after'], indent=2)
   return 0
 
