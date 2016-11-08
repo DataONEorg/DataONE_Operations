@@ -48,10 +48,11 @@ def setupLogger(name, level=logging.WARN, log_file=None, file_log_level=logging.
   formatter = LogFormatter(fmt='%(asctime)s %(name)s %(levelname)s: %(message)s',
                            datefmt='%Y%m%dT%H%M%S.%f%z')
   if not log_file is None:
+    #Lot to UTC so messages can be more easily compared with logs on the CNs
     l1 = logging.handlers.TimedRotatingFileHandler(filename=log_file,
                                                    when='D',
                                                    interval=1,
-                                                   utc=False,
+                                                   utc=True,
                                                    encoding='utf-8')
     l1.setFormatter(formatter)
     l1.setLevel(file_log_level)
