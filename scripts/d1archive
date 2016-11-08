@@ -1,0 +1,55 @@
+'''
+Archive an object in DataONE.
+
+Archiving does not delete any content, it indicates that the object is to be removed from the
+search index and so become undiscoverable through normal means. The content will still resolve
+normally and will be retrievable.
+'''
+
+import sys
+import logging
+import argparse
+import d1_admin_tools
+from d1_admin_tools import operations
+import pprint
+from d1_client import cnclient_2_0
+
+
+def doArchive(client, pid):
+  affirmation = raw_input("Please confirm ARCHIVE (yes or no):")
+  if affirmation != 'yes':
+    raise ValueError("Terminating ARCHIVE request.")
+  logging.warn("ARCHIVE: %s", pid)
+  result = {}
+  result['response'] = client.archive(pid)
+  result['status'] = client.status_code
+  result['xml'] = client.last_response_body
+  return result
+
+
+def main():
+  defaults = {'format':['text', 'xml'],
+              }
+  parser = argparse.ArgumentParser(description='Archive an object in DataONE.')
+  parser.add_argument('pid',
+                      help="Identifier to archive")
+  parser.add_argument('-E', '--certificate',
+                      default=None,
+                      help='Certificate to authenticate request.')
+  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  base_url = config.envPrimaryBaseURL(args.environment)
+  client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
+                                                   api_major=2,
+                                                   capture_response_body=True,
+                                                   cert_path=args.certificate)
+  logging.warn("Archiving pid: %s in %s environment.", args.pid, args.environment)
+  result = doArchive(client, args.pid)
+  if args.format == 'xml':
+    print(result['xml'])
+    return 0
+  pprint.pprint(result, indent=2, encoding='utf-8')
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
