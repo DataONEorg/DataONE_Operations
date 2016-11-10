@@ -60,7 +60,7 @@ class D1PIDInfo(object):
     urls = []
     if primary_only:
       urls.append(self.base_urls)[0]
-    else
+    else:
       urls = self.base_urls[1:]
     return urls
 
@@ -94,6 +94,14 @@ class D1PIDInfo(object):
 
 
   def checkSearchIndex(self):
+    pass
+
+
+  def getSeriesMembers(self):
+    '''
+
+    :return:
+    '''
     pass
 
 

@@ -3,7 +3,35 @@
 
 '''
 
+import os
 import logging
+import time
+
+def escapeSolrQueryTerm(term):
+  '''
+  + - && || ! ( ) { } [ ] ^ " ~ * ? : \
+  '''
+  reserved = ['+', '-', '&', '|', '!', '(', ')', '{', '}',
+              '[', ']', '^', '"', '~', '*', '?', ':',
+              ]
+  term = term.replace(u'\\', u'\\\\')
+  for c in reserved:
+    term = term.replace(c, u"\%s" % c)
+  return term
+
+
+def tmpFileName(tmp_dir="/tmp", prefix="", ext="txt"):
+  '''
+  Returns a temporary file name with a high likelihood of uniqueness.
+
+  :param tmp_dir: Folder to contain the file
+  :param prefix: Prefix for file name
+  :param ext: Extension for file name (not including the .)
+  :return: File name and path relative to tmp_dir.
+  '''
+  ts = int(time.time()*100000)
+  return os.path.join(tmp_dir, "{0}_{1}.{2}".format(prefix, ts, ext))
+
 
 
 def resolve(client, pid):

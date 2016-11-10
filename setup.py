@@ -18,7 +18,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.6.0',
+    version='0.8.0',
 
     description='Utilities for administrative operations in DataONE',
     long_description=long_description,
@@ -101,6 +101,8 @@ setup(
              'scripts/urlx',
              'scripts/d1listobjects',
              'scripts/d1delete',
+             'scripts/d1archive',
+             'scripts/d1indexqstat',
              ],
 
     # To provide executable scripts, use entry points in preference to the

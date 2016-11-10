@@ -10,8 +10,8 @@ import sys
 import logging
 import argparse
 import d1_admin_tools
-from d1_admin_tools import operations
 import pprint
+import requests
 from d1_client import cnclient_2_0
 
 
@@ -39,7 +39,7 @@ def main():
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   base_url = config.envPrimaryBaseURL(args.environment)
   client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
-                                                   api_major=2,
+                                                   api_major=1,
                                                    capture_response_body=True,
                                                    cert_path=args.certificate)
   logging.warn("Archiving pid: %s in %s environment.", args.pid, args.environment)

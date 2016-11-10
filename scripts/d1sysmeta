@@ -37,7 +37,7 @@ def main():
   '''
   parser = argparse.ArgumentParser(description='Retrieve SystemMetadata for an object.')
   parser.add_argument('-B', '--baseURL',
-                      default="https://cn.dataone.org/cn",
+                      default=None,
                       help='Base URL of node from which to retrieve system metadata (overrides -e)')
   parser.add_argument('pid',
                       help="Identifier to evaluate")
@@ -47,6 +47,8 @@ def main():
   logger = logging.getLogger('main')
   pid = args.pid
   base_url = args.baseURL
+  if base_url is None:
+    base_url = config.envPrimaryBaseURL(args.environment)
   client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
   results = getSystemMetadata(client, pid)
   format = args.format.lower()

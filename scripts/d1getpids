@@ -29,8 +29,8 @@ import sys
 import logging
 import argparse
 import d1_admin_tools
+from d1_admin_tools import operations
 import datetime
-import time
 import dateparser
 import os
 import csv
@@ -43,18 +43,6 @@ PSQL_DATE_FORMAT="%Y-%m-%dT%H:%M:%S.%f%z"
 RESULTS_FILE = 'results.json'
 ANALYSIS_FILE = 'analysis.json'
 
-
-def tmpFileName(tmp_dir="/tmp", prefix="", ext="txt"):
-  '''
-  Returns a temporary file name with a high likelihood of uniqueness.
-
-  :param tmp_dir: Folder to contain the file
-  :param prefix: Prefix for file name
-  :param ext: Extension for file name (not including the .)
-  :return: File name and path relative to tmp_dir.
-  '''
-  ts = int(time.time()*100000)
-  return os.path.join(tmp_dir, "{0}_{1}.{2}".format(prefix, ts, ext))
 
 #==================
 #++ Fabric Tasks ++
@@ -70,7 +58,7 @@ def runSQLQuery(SQL, dest_file, tmp_file=None, user=PSQL_READONLY_USER, database
   '''
   logger = logging.getLogger('main')
   if tmp_file is None:
-    tmp_file = tmpFileName("/tmp/", prefix="sql", ext="txt")
+    tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
   cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + database
   cmd += " -P pager=off --single-transaction"
   cmd += " --no-align -t --field-separator '" + delimiter + "' --quiet"
@@ -88,7 +76,7 @@ def listDataDocuments(dest_file):
   :param dest_file: File to contain results, one filename per line
   :return: Nothing
   '''
-  tmp_file = tmpFileName("/tmp/", prefix="metacat_files", ext="txt")
+  tmp_file = operations.tmpFileName("/tmp/", prefix="metacat_files", ext="txt")
   cmd = "ls /var/metacat/documents > {0}".format(tmp_file)
   run(cmd)
   cmd = "ls /var/metacat/data >> {0}".format(tmp_file)
