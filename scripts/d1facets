@@ -51,8 +51,8 @@ def main():
                       default='solr',
                       help='Name of solr index to use (solr)')
   parser.add_argument('-d', '--delimiter',
-                      default=',',
-                      help='Delimiter for text output (default = ,)')
+                      default=None,
+                      help='Delimiter for text output')
   parser.add_argument('field',
                       default='nodeId',
                       help='Field to get facet values')
@@ -76,8 +76,17 @@ def main():
     import yaml
     print yaml.safe_dump(results, encoding='utf-8')
     return 0
+  if args.delimiter is not None:
+    for row in results['values']:
+      print(u"{0}{1}{2}".format(row[0], args.delimiter, row[1]).encode('utf-8'))
+    return 0
+  val_length = 0
   for row in results['values']:
-    print(u"{0}{1}{2}".format(row[0], args.delimiter, row[1]).encode('utf-8'))
+    if len(row[0]) > val_length:
+      val_length = len(row[0])
+  formatstr = u"{0:<" + str(val_length + 1) + "}{1}"
+  for row in results['values']:
+    print(formatstr.format(row[0], row[1]).encode('utf-8'))
   return 0
 
 
