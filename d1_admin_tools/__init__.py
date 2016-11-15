@@ -65,7 +65,11 @@ def setupLogger(name, level=logging.WARN, log_file=None, file_log_level=logging.
   logger.addHandler(l2)
 
 
-def defaultScriptMain(parser, arg_defaults=None):
+def defaultScriptMain(parser,
+                      arg_defaults=None,
+                      with_config=True,
+                      with_environment=True,
+                      with_format=True):
   '''
   Default Main method for scripts.
 
@@ -89,15 +93,18 @@ def defaultScriptMain(parser, arg_defaults=None):
   if arg_defaults is None:
     arg_defaults = {}
   defaults.update(arg_defaults)
-  parser.add_argument('-c', '--config',
-                      default=defaults['config'],
-                      help='Name of configuration file (default = {0}'.format(defaults['config']))
-  parser.add_argument('-e', '--environment',
-                      default=defaults['environment'],
-                      help="Name of environment to examine (default = production)")
-  parser.add_argument('-f', '--format',
-                      default=defaults['format'][0],
-                      help='Output format ({0})'.format(",".join(defaults['format'])))
+  if with_config:
+    parser.add_argument('-c', '--config',
+                        default=defaults['config'],
+                        help='Name of configuration file (default = {0}'.format(defaults['config']))
+  if with_environment:
+    parser.add_argument('-e', '--environment',
+                        default=defaults['environment'],
+                        help="Name of environment to examine (default = production)")
+  if with_format:
+    parser.add_argument('-f', '--format',
+                        default=defaults['format'][0],
+                        help='Output format ({0})'.format(",".join(defaults['format'])))
   parser.add_argument('-l', '--log_level',
                       action='count',
                       default=defaults['log_level'],
