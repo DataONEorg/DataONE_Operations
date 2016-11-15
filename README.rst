@@ -17,6 +17,9 @@ See also the operations docs in subversion:
 * https://purl.dataone.org/operations/index.html
 
 
+.. _Wiki: https://github.com/DataONEorg/DataONE_Operations/wiki
+
+
 Installation
 ------------
 
@@ -72,5 +75,3 @@ Output in text, json, xml is generally supported.
 * ``d1indexqstat`` Retrieves counts from the index processor task queue.
 * ``d1pidinfo`` Evaluates various aspects of an identifier in an environment.
 
-
-.. _Wiki: https://github.com/DataONEorg/DataONE_Operations/wiki
