@@ -104,7 +104,7 @@ def main():
       print(row)
     return 0
   for row in results['items']:
-    print("{nodeId}\t{baseUrl}\t{name}".format(**row))
+    print("{nodeId:<21}{baseUrl:<50} {name}".format(**row))
   return 0
 
 
