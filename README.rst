@@ -40,7 +40,7 @@ not then install from PyPi (``pip install dataone.libclient``) or for a locally 
 
 3. ``pip install -U --user -e d1_python/d1_libclient_python/src``
 
-.._ d1_python: https://github.com/DataONEorg/d1_python
+.. _d1_python: https://github.com/DataONEorg/d1_python
 
 
 Initialization
