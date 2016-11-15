@@ -47,8 +47,7 @@ def getIndexQueueStatus(dest_file, tmp_file=None, include_node=True, include_for
 
 def main():
   parser = argparse.ArgumentParser(description='Retrieve identifiers from a CN direct from database.')
-  parser.add_argument('-H', '--host',
-                      default=None,
+  parser.add_argument('host',
                       help='Host name to query')
   parser.add_argument('-N', '--include_node',
                       action='store_true',
@@ -58,7 +57,7 @@ def main():
                       action='store_true',
                       default=False,
                       help="Include formatId in report")
-  args, config = d1_admin_tools.defaultScriptMain(parser)
+  args, config = d1_admin_tools.defaultScriptMain(parser, with_config=False, with_environment=False, with_format=False)
   dst_file = operations.tmpFileName("/tmp", prefix="qcount", ext='txt')
   execute( getIndexQueueStatus, dst_file, include_node=args.include_node, include_formatid=args.include_formatid, host=args.host)
   with open(dst_file, 'r') as src:
