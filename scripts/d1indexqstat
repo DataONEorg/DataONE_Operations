@@ -26,14 +26,16 @@ def getIndexQueueStatus(dest_file, tmp_file=None, include_node=True, include_for
   logger = logging.getLogger("main")
   if tmp_file is None:
     tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
-  SQL = "SELECT status,deleted,COUNT(*) AS cnt FROM index_task GROUP BY status,deleted ORDER BY status;"
+  SQL = "SELECT status,deleted,COUNT(*) AS cnt FROM index_task GROUP BY status,deleted ORDER BY status"
+  if include_formatid:
+    SQL = """select status, deleted, formatid, count(*) as cnt from index_task group by status,deleted,formatid order by status,formatid"""
   if include_node:
     if include_formatid:
       SQL = """select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node,
- status, deleted, formatid, count(*) as cnt from index_task group by node,status,deleted,formatid order by node, status;"""
+ status, deleted, formatid, count(*) as cnt from index_task group by node,status,deleted,formatid order by node, status"""
     else:
       SQL = """select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node,
-      status, deleted, count(*) as cnt from index_task group by node,status,deleted order by node, status;"""
+      status, deleted, count(*) as cnt from index_task group by node,status,deleted order by node, status"""
   cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + QUEUE_DATABASE
   cmd += " -P pager=off --single-transaction"
   cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
