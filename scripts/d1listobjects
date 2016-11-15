@@ -11,6 +11,7 @@ import d1_admin_tools
 from d1_admin_tools import dataone_response
 from d1_client import d1baseclient_1_1
 from d1_client import d1baseclient_2_0
+from d1_client import cnclient_2_0
 
 #YYYY-MM-DDTHH:MM:SS.mmm+00:00
 DATAONE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
@@ -52,6 +53,9 @@ def main():
   parser.add_argument('-C', '--max_records',
                       default=5,
                       help='Maximum number of entries to retrieve.')
+  parser.add_argument('-N', '--node_id',
+                      default=None,
+                      help='Limit response to content from specified NodeId.')
   parser.add_argument('-x', '--date_start',
                       default=None,
                       help='Earliest modified date for records.')
@@ -86,16 +90,29 @@ def main():
   total_records = -1
   counter = start_index
   client = None
-  if args.api_version == '2':
-    client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+  if args.node_id is not None:
+    client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url, capture_response_body=True)
   else:
-    client = d1baseclient_1_1.DataONEBaseClient_1_1(base_url, capture_response_body=True)
+    if args.api_version == '2':
+      client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+    else:
+      client = d1baseclient_1_1.DataONEBaseClient_1_1(base_url, capture_response_body=True)
   while n_retrieved < max_to_retrieve:
-    res = doListObjects(client,
-                        count = args.page_size,
-                        start = start_index,
-                        fromDate=date_start,
-                        toDate=date_end)
+    res = None
+    if args.node_id is not None:
+      res = doListObjects(client,
+                          count = args.page_size,
+                          start = start_index,
+                          fromDate=date_start,
+                          toDate=date_end,
+                          nodeId=args.node_id)
+    else:
+      res = doListObjects(client,
+                          count=args.page_size,
+                          start=start_index,
+                          fromDate=date_start,
+                          toDate=date_end)
+
     if total_records < 0:
       logger.info("Total matching records = %d", res.content.total)
     if total_records < 0:
