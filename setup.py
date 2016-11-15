@@ -95,7 +95,6 @@ setup(
              'scripts/d1sysmeta',
              'scripts/d1nodes',
              'scripts/d1facets',
-             'scripts/d1nodes',
              'scripts/d1getpids',
              'scripts/d1fields',
              'scripts/urlx',
