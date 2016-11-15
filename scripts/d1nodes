@@ -103,8 +103,16 @@ def main():
     for row in summary:
       print(row)
     return 0
+  nlen = 0
+  blen = 0
   for row in results['items']:
-    print("{nodeId:<21}{baseUrl:<50} {name}".format(**row))
+    if len(row['nodeId']) > nlen:
+      nlen = len(row['nodeId'])
+    if len(row['baseUrl']) > blen:
+      blen = len(row['baseUrl'])
+  fmtstr = "{nodeId:<" + str(nlen+1) + "}{baseUrl:<" + str(blen+1)+"} {name}"
+  for row in results['items']:
+    print(fmtstr.format(**row))
   return 0
 
 
