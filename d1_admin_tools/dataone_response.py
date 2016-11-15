@@ -39,11 +39,11 @@ class DataONEResponse( object ):
   def setContent(self, obj, xml=None):
     self.content = obj
     if xml is None:
-      #if hasattr( obj, 'toxml' ):
-      #  self.xml = obj.toxml()
-      #else:
-      dom = self.content.toDOM(None)
-      self.xml = dom.toprettyxml(indent=self.indent*u' ')
+      if hasattr( obj, 'toxml' ):
+        self.xml = obj.toxml()
+      else:
+        dom = self.content.toDOM(None)
+        self.xml = dom.toprettyxml(indent=self.indent*u' ')
     else:
       self.xml = xml
 
