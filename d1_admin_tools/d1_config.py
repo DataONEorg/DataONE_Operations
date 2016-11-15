@@ -122,7 +122,7 @@ class D1Configuration( object ):
     self.config = {}
 
     #Version of the configuration file structure
-    self.config['version'] = '1.0.0'
+    self.config['version'] = '1.1.0'
 
     #Initialize the various environment settings
     self.config['environments'] = {'production': {'primary': {'host':'cn.dataone.org', 'base':'/cn', },
@@ -132,6 +132,8 @@ class D1Configuration( object ):
                                                           ],
                                                   'login':{'cert':'https://cilogon.org/?skin=dataone',
                                                            'token':''},
+                                                  'postgres': {'readonly': 'dataone_readonly',
+                                                               'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                   },
                                    'stage': {'primary': {'host':'cn-stage.test.dataone.org', 'base':'/cn', },
                                              'cns': [{'host':'cn-stage-ucsb-1.test.dataone.org', 'base':'/cn', },
@@ -140,12 +142,16 @@ class D1Configuration( object ):
                                                      ],
                                              'login': {'cert': 'https://cilogon.org/?skin=dataonestage',
                                                        'token': ''},
+                                             'postgres': {'readonly': 'dataone_readonly',
+                                                          'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                              },
                                    'stage-2': {'primary': {'host':'cn-stage-2.test.dataone.org', 'base':'/cn', },
                                                'cns': [{'host':'cn-stage-unm-2.test.dataone.org', 'base':'/cn', },
                                                        ],
                                                'login': {'cert': 'https://cilogon.org/?skin=dataonestage2',
                                                          'token': ''},
+                                               'postgres': {'readonly': 'dataone_readonly',
+                                                            'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                },
                                    'sandbox': {'primary': {'host':'cn-sandbox.test.dataone.org', 'base':'/cn', },
                                                'cns': [{'host':'cn-sandbox-ucsb-1.test.dataone.org', 'base':'/cn', },
@@ -154,12 +160,16 @@ class D1Configuration( object ):
                                                        ],
                                                'login': {'cert': 'https://cilogon.org/?skin=dataonesandbox',
                                                          'token': ''},
+                                               'postgres': {'readonly': 'dataone_readonly',
+                                                            'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                },
                                    'sandbox-2': {'primary': {'host':'cn-sandbox-2.test.dataone.org', 'base':'/cn', },
                                                  'cns': [{'host':'cn-sandbox-ucsb-2.test.dataone.org', 'base':'/cn', },
                                                          ],
                                                  'login': {'cert': 'https://cilogon.org/?skin=dataonesandbox2',
                                                            'token': ''},
+                                                 'postgres': {'readonly': 'dataone_readonly',
+                                                              'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                  },
                                    'dev': {'primary': {'host':'cn-dev.test.dataone.org', 'base':'/cn', },
                                            'cns': [{'host':'cn-dev-ucsb-1.test.dataone.org', 'base':'/cn', },
@@ -168,6 +178,8 @@ class D1Configuration( object ):
                                                    ],
                                            'login': {'cert': 'https://cilogon.org/?skin=dataonedev',
                                                      'token': ''},
+                                           'postgres': {'readonly': 'dataone_readonly',
+                                                        'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                            },
                                    'dev-2': {'primary': {'host':'cn-dev-2.test.dataone.org', 'base':'/cn', },
                                              'cns': [{'host':'cn-dev-ucsb-2.test.dataone.org', 'base':'/cn', },
@@ -175,6 +187,8 @@ class D1Configuration( object ):
                                                      ],
                                              'login': {'cert': 'https://cilogon.org/?skin=dataonedev2',
                                                        'token': ''},
+                                             'postgres': {'readonly': 'dataone_readonly',
+                                                          'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                              },
                                    }
     # A postgres username that is allowedread only access to the CN database (when logged into CN only
