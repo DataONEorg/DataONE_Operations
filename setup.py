@@ -102,6 +102,7 @@ setup(
              'scripts/d1delete',
              'scripts/d1archive',
              'scripts/d1indexqstat',
+             'scripts/d1cnprocessingstate'
              ],
 
     # To provide executable scripts, use entry points in preference to the
