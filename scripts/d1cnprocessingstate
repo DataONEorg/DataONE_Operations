@@ -1,0 +1,143 @@
+'''
+Get or Set the state of processing services on a Coordinating Node
+'''
+
+import sys
+import logging
+import argparse
+import d1_admin_tools
+from d1_admin_tools import operations
+import datetime
+import dateparser
+import os
+import csv
+import codecs
+import json
+from getpass import getpass
+from fabric.api import run, sudo, execute, hide
+from fabric.context_managers import env, settings
+
+PROCESSING_PROPERTIES = {'synchronization': {'file': 'synchronization.properties',
+                                             'prop': 'Synchronization\\.active'
+                                             },
+                         'replication':{'file': 'replication.properties',
+                                        'prop': 'Replication\\.active'
+                                        },
+                         'logaggregation': {'file':'logAggregation.properties',
+                                            'prop':'LogAggregator\\.active'
+                                            }
+                         }
+
+def getProcessingServiceState(service):
+  '''
+  '''
+  service = service.lower()
+  propfile = os.path.join("/etc/dataone/process/", PROCESSING_PROPERTIES[service]['file'])
+  cmd = "grep \"" + PROCESSING_PROPERTIES[service]['prop'] + "\" " + propfile
+  res = run(cmd)
+  return res
+
+
+def setProcessingServiceState(service, state):
+  service = service.lower()
+  if service not in PROCESSING_PROPERTIES.keys():
+    raise ValueError("Unknown service: {0}".format(service))
+  propfile = os.path.join("/etc/dataone/process/", PROCESSING_PROPERTIES[service]['file'])
+  state = state.upper()
+  if state not in ['TRUE', 'FALSE']:
+    raise ValueError("Bad state for service: {0}".format(state))
+  # s/^\(Synchronization\.active\=\).*/\1TRUE/'
+  cmd = "sed -i 's/^\(" + PROCESSING_PROPERTIES[service]['prop'] + "\=\).*/\\1" + state + "/' " + propfile
+  sudo(cmd)
+  return getProcessingServiceState(service)
+
+
+def getSynchronizationEnabled():
+  return getProcessingServiceState('synchronization')
+
+
+def getReplicationEnabled():
+  return getProcessingServiceState('replication')
+
+
+def getLogAggregationEnabled():
+  return getProcessingServiceState('logaggregation')
+
+
+def setSynchronizationEnabled(state):
+  '''Set active state in synchronization.properties
+
+  Arguments:
+    state (str): "TRUE" or "FALSE", new setting for Synchronization.active
+  '''
+  print setProcessingServiceState('synchronization', state)
+
+
+def setReplicationEnabled(state):
+  '''Set active state in replication.properties
+
+  Arguments:
+    state (str): "TRUE" or "FALSE", new setting for Replication.active
+  '''
+  print setProcessingServiceState('replication', state)
+
+
+def setLogAggregationEnabled(state):
+  '''Set active state in logAggregation.properties
+
+  Arguments:
+    state (str): "TRUE" or "FALSE", new setting for LogAggregator.active
+  '''
+  print setProcessingServiceState('logaggregation', state)
+
+
+def setProcessingServicesEnabled(state):
+  '''Set active state service properties for sync, replication, log aggregation
+
+  Sets the "active" property for each of the DataONE services to the specified
+  value.
+
+  Arguments:
+    state (str): "TRUE" or "FALSE", new setting for all services active property
+  '''
+  if state not in ("TRUE", "FALSE"):
+    raise ValueError("Valid values are TRUE or FALSE only")
+  setSynchronizationEnabled(state)
+  setReplicationEnabled(state)
+  setLogAggregationEnabled(state)
+
+
+def getProcessingServicesEnabled():
+  res = {}
+  res['synchronization'] = getSynchronizationEnabled()
+  res['replication'] = getReplicationEnabled()
+  res['logaggregation'] = getLogAggregationEnabled()
+  return res
+
+
+def main():
+  parser = argparse.ArgumentParser(description='Get or Set the state of CN processing services.')
+  parser.add_argument('-S', '--set_state',
+                      default=None,
+                      help="Set services state (TRUE or FALSE)")
+  args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
+  host = config.envPrimaryHost(args.environment)
+  if args.set_state is not None:
+    if args.set_state not in ['TRUE','FALSE']:
+      print("Error: value for set_state must be TRUE or FALSE only, not {0}.".format(args.set_state))
+      return 1
+    logging.info("Setting state for processing services on %s to %s", host, args.set_state)
+    prompt = "Password for operation that requires sudo: "
+    password = getpass(prompt)
+    env.password = password
+    execute(setProcessingServicesEnabled, args.set_state, host=host)
+  with settings(
+      hide('warnings', 'running', 'stdout', 'stderr'),
+  ):
+    res = execute(getProcessingServicesEnabled, host=host)
+  print("Processing states for {0}".format(host))
+  print("  {synchronization}\n  {replication}\n  {logaggregation}\n".format(**res[host]))
+
+
+if __name__ == "__main__":
+  sys.exit(main())
