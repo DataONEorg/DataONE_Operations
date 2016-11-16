@@ -120,8 +120,13 @@ def main():
   parser.add_argument('-S', '--set_state',
                       default=None,
                       help="Set services state (TRUE or FALSE)")
+  parser.add_argument('-H','--host',
+                      default=None,
+                      help="Host name of CN to set state (overrides -e)")
   args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
   host = config.envPrimaryHost(args.environment)
+  if args.host is not None:
+    host = args.host
   if args.set_state is not None:
     if args.set_state not in ['TRUE','FALSE']:
       print("Error: value for set_state must be TRUE or FALSE only, not {0}.".format(args.set_state))
