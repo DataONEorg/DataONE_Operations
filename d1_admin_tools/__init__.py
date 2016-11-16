@@ -111,6 +111,8 @@ def defaultScriptMain(parser,
                       help='Set logging level, multiples for more detailed.')
   command = " ".join(sys.argv)
   args = parser.parse_args()
+  if not with_environment:
+    args.environment = "production"
   # Setup logging verbosity
   levels = [logging.WARNING, logging.INFO, logging.DEBUG]
   level = levels[min(len(levels) - 1, args.log_level)]
