@@ -6,13 +6,7 @@ import sys
 import logging
 import argparse
 import d1_admin_tools
-from d1_admin_tools import operations
-import datetime
-import dateparser
 import os
-import csv
-import codecs
-import json
 from getpass import getpass
 from fabric.api import run, sudo, execute, hide
 from fabric.context_managers import env, settings
