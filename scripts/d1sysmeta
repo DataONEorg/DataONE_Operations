@@ -3,6 +3,7 @@
 Retrieve system metadata for a PID
 '''
 
+import sys
 import logging
 import argparse
 import d1_admin_tools
@@ -26,6 +27,7 @@ def getSystemMetadata(client, pid):
   return dataone_response.DataONEResponse( e )
 
 
+
 def main():
   '''
   -c --config:      optional path to configuration
@@ -36,12 +38,16 @@ def main():
   :return: int for sys.exit()
   '''
   parser = argparse.ArgumentParser(description='Retrieve SystemMetadata for an object.')
+  parser.add_argument('-r','--raw',
+                      default=False,
+                      action='store_true',
+                      help='Show raw output from request, no parsing or formatting')
   parser.add_argument('-B', '--baseURL',
                       default=None,
                       help='Base URL of node from which to retrieve system metadata (overrides -e)')
   parser.add_argument('pid',
                       help="Identifier to evaluate")
-  defaults = {'format': ['text', 'json', 'xml'],
+  defaults = {'format': ['xml','text', 'json'],
               }
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   logger = logging.getLogger('main')
@@ -50,6 +56,11 @@ def main():
   if base_url is None:
     base_url = config.envPrimaryBaseURL(args.environment)
   client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+  if args.raw:
+    response = client.getSystemMetadataResponse(pid)
+    logging.info("Response status: %d",client.status_code)
+    print(response.content)
+    return 0
   results = getSystemMetadata(client, pid)
   format = args.format.lower()
   if format not in defaults['format']:
@@ -60,7 +71,7 @@ def main():
     print( results.asJSON())
   else:
     print( unicode(results) )
-
+  return 0
 
 if __name__ == "__main__":
-  main()
+  sys.exit(main())

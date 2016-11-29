@@ -8,8 +8,14 @@ import logging.handlers
 import atexit
 import datetime
 import d1_config
-import dateparser
 from pytz import timezone
+
+#dateparser has some code that needs to be updated
+import warnings
+import ruamel.yaml
+warnings.simplefilter('ignore', ruamel.yaml.error.UnsafeLoaderWarning)
+import dateparser
+
 
 
 def textToDateTime(txt, default_tz='UTC'):
