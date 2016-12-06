@@ -73,5 +73,5 @@ Output in text, json, xml is generally supported.
 * ``d1delete`` Issues a call to CNCore.delete() for a single PID.
 * ``d1archive`` Issues a call to CNCore.archive() for a single PID.
 * ``d1indexqstat`` Retrieves counts from the index processor task queue.
-* ``d1pidinfo`` Evaluates various aspects of an identifier in an environment.
+* ``d1mnadmin`` Reset synchronization time, update MN node document
 
