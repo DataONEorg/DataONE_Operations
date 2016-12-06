@@ -51,7 +51,7 @@ def doEncode(instr, full_url=False):
   res = {}
   if not full_url:
     logging.info("Encoding string: %s", instr)
-    res = urllib.quote(instr)
+    res = urllib.quote(instr, safe='')
   else:
     logging.info("Parsing and Encoding URL: %s", instr)
     url_parts = urlparse.urlsplit(instr, allow_fragments=True)
