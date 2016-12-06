@@ -26,19 +26,36 @@ select TIMESTAMP 'epoch' + datesysmetamodified * INTERVAL '1 millisecond' as SMD
 
 select A.pid, A.N from (select pid, ROW_NUMBER() OVER() as N from index_task where status='NEW' order by taskmodifieddate) A where A.pid='e2d409da-a08c-4391-a2a6-59764b80548b'
 
+SELECT to_timestamp(A.dsm/1000) as dsm, to_timestamp(A.tmd/1000) as tmd,
+A.priority, A.node, A.pid, A.trycount, A.qpos, A.qpos1
+FROM (SELECT datesysmetamodified AS dsm, taskmodifieddate AS tmd, priority, pid, trycount, status,
+row_number() over (order by priority ASC, datesysmetamodified ASC) as qpos,
+row_number() over (order by priority ASC, taskmodifieddate ASC) as qpos1,
+(xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node
+FROM index_task WHERE status='IN PROCESS') A order by qpos1 desc;
+
 
 '''
 
-def getPIDQPos(pid, dest_file, tmp_file=None):
+def getPIDQPos(pid, dest_file, qstat='IN PROCESS', tmp_file=None):
   logger = logging.getLogger("main")
   if tmp_file is None:
     tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
-  SQL = '''SELECT A.n, A.smd, A.tmd, A.priority, A.trycount, A.status, A.pid FROM (
-SELECT TIMESTAMP 'epoch' + datesysmetamodified * INTERVAL '1 millisecond' as SMD,
-       nextexecution, priority,
-       TIMESTAMP 'epoch' + taskmodifieddate * INTERVAL '1 millisecond' as tmd,
-       trycount, pid, status, ROW_NUMBER() OVER(order by datesysmetamodified desc) as n from index_task) A
-WHERE A.pid='{0}';'''.format(pid)
+#  SQL = '''SELECT A.n, A.smd, A.tmd, A.priority, A.trycount, A.status, A.pid FROM (
+#SELECT TIMESTAMP 'epoch' + datesysmetamodified * INTERVAL '1 millisecond' as SMD,
+#       nextexecution, priority,
+#       TIMESTAMP 'epoch' + taskmodifieddate * INTERVAL '1 millisecond' as tmd,
+#       trycount, pid, status, ROW_NUMBER() OVER(order by datesysmetamodified desc) as n from index_task) A
+#WHERE A.pid='{0}';'''.format(pid)
+
+  #TODO: Escape pid !!!
+  SQL='''SELECT to_timestamp(A.dsm/1000) as dsm, to_timestamp(A.tmd/1000) as tmd,
+A.priority, A.node, A.pid, A.trycount, A.qpos
+FROM (SELECT datesysmetamodified AS dsm, taskmodifieddate AS tmd, priority, pid, trycount, status,
+row_number() over (order by priority ASC, taskmodifieddate ASC) as qpos,
+(xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node
+FROM index_task WHERE status='{0}') A WHERE A.pid='{1}' '''.format(qstat, pid)
+
   cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + QUEUE_DATABASE
   cmd += " -P pager=off --single-transaction"
   cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
