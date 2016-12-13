@@ -47,6 +47,9 @@ def main():
                       help='Base URL of node from which to retrieve system metadata (overrides -e)')
   parser.add_argument('pid',
                       help="Identifier to evaluate")
+  parser.add_argument('-E', '--certificate',
+                      default=None,
+                      help='File name of client certificate to use for authenticating access to content.')
   defaults = {'format': ['xml','text', 'json'],
               }
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
@@ -55,7 +58,7 @@ def main():
   base_url = args.baseURL
   if base_url is None:
     base_url = config.envPrimaryBaseURL(args.environment)
-  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True, cert_path=args.certificate)
   if args.raw:
     response = client.getSystemMetadataResponse(pid)
     logging.info("Response status: %d",client.status_code)
