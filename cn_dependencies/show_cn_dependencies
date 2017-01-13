@@ -1,0 +1,63 @@
+#!/bin/bash
+#
+# Show dependencies for DataONE CN packages
+#
+# Generates a graphviz file computed by examining the debian package
+# dependencies for DataONE Coordinating Node packages. The result
+# can be viewed at:
+#
+#   https://{CNODE}/cn_dependencies.html
+#
+# To update the .gv file, do soemthing like:
+#
+#   sudo bash -c 'bin/show_cn_deps > /var/www/cn_dependencies.gv'
+#
+
+function getPackageProp {
+  #apt-cache show "${2}" | grep "^${1}" | cut -d ':' -f2
+  dpkg -s "${2}" | grep "^${1}" | cut -d ':' -f 2-
+}
+
+function trimWhiteSpace {
+  echo "${1}" | xargs echo -n
+}
+
+function getDependencies {
+  f_pkg="${1}"
+  # info about the specified package
+  pkg_name=$(getPackageProp "Package" "${f_pkg}")
+  pkg_name=$(trimWhiteSpace "${pkg_name}")
+  pkg_version=$(getPackageProp "Version" "${f_pkg}")
+  #pkg_version=$(trimWhiteSpace "${pkg_version}")
+  echo "\"${pkg_name}\" [style=filled, fillcolor=lightskyblue1, label=\"${pkg_name}\\n${pkg_version}\"];"
+
+  # Load the dependencies of the package
+  depstr=$(getPackageProp "Depends" "${f_pkg}")
+  IFS=',' read -r -a deps <<< "${depstr}"
+  for dep in "${deps[@]}"; do
+    dep=$(trimWhiteSpace "${dep}")
+    if [[ "${dep}" != dataone* ]]; then
+      dep_version=$(getPackageProp "Version" "${dep}")
+      dep="${dep}\\n${dep_version}"
+    fi
+    echo "\"${pkg_name}\" -> \"${dep}\";"
+  done
+}
+
+TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S.%N")
+echo "digraph CoordinatingNode {"
+echo "  labelloc=\"t\";"
+echo "  label=\"Coordinating Node Dependencies, generated: ${TIMESTAMP}\";"
+echo "  rankdir=LR;"
+echo "  node [shape=box, fontsize=10, fontname=\"consolas\", margin=\"0.3,0.055\"];"
+getDependencies "dataone-cn-os-core"
+getDependencies "dataone-cn-solr"
+getDependencies "dataone-cn-index"
+getDependencies "dataone-cn-metacat"
+getDependencies "dataone-cn-portal"
+getDependencies "dataone-cn-processdaemon"
+getDependencies "dataone-cn-rest-service"
+getDependencies "dataone-cn-version-tool"
+getDependencies "dataone-solr"
+getDependencies "dataone-zookeeper"
+echo "}"
