@@ -14,5 +14,5 @@ by visiting ``/cn_dependencies.html`` on the CN.
 2. Download the html file and put it in ``/var/www``
 3. Generate the .gv file using something like:
      ```
-     sudo -c bash `./show_cn_dependencies > /var/www/cn_dependencies.gv`
+     sudo -c bash './show_cn_dependencies > /var/www/cn_dependencies.gv'
      ```
