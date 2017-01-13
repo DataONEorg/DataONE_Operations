@@ -2,6 +2,9 @@
 <html>
 <head>
 <!-- Drop this file into /var/www -->
+<!--
+Origin: https://raw.githubusercontent.com/DataONEorg/DataONE_Operations/master/cn_dependencies/cn_dependencies.html
+-->
 <script src="https://github.com/mdaines/viz.js/releases/download/v1.4.1/viz.js">
 </script>
 <script>
@@ -9,7 +12,7 @@ function getDoc(url) {
   var request = new XMLHttpRequest();
   request.onreadystatechange = function() {
     if (request.readyState === 4 && request.status === 200) {
-      document.body.innerHTML += Viz(request.responseText, {scale:0.66});
+      document.body.innerHTML += Viz(request.responseText);
     }
   };
   request.open("GET", url, false);

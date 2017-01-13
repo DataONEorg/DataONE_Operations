@@ -10,11 +10,10 @@
 #
 # To update the .gv file, do soemthing like:
 #
-#   sudo bash -c 'bin/show_cn_deps > /var/www/cn_dependencies.gv'
+#   sudo bash -c './show_cn_dependencies > /var/www/cn_dependencies.gv'
 #
 
 function getPackageProp {
-  #apt-cache show "${2}" | grep "^${1}" | cut -d ':' -f2
   dpkg -s "${2}" | grep "^${1}" | cut -d ':' -f 2-
 }
 
@@ -28,7 +27,6 @@ function getDependencies {
   pkg_name=$(getPackageProp "Package" "${f_pkg}")
   pkg_name=$(trimWhiteSpace "${pkg_name}")
   pkg_version=$(getPackageProp "Version" "${f_pkg}")
-  #pkg_version=$(trimWhiteSpace "${pkg_version}")
   echo "\"${pkg_name}\" [style=filled, fillcolor=lightskyblue1, label=\"${pkg_name}\\n${pkg_version}\"];"
 
   # Load the dependencies of the package
@@ -47,7 +45,7 @@ function getDependencies {
 TIMESTAMP=$(date +"%Y-%m-%dT%H:%M:%S.%N")
 echo "digraph CoordinatingNode {"
 echo "  labelloc=\"t\";"
-echo "  label=\"Coordinating Node Dependencies, generated: ${TIMESTAMP}\";"
+echo "  label=\"Coordinating Node Debian Package Dependencies\\ngenerated: ${TIMESTAMP}\";"
 echo "  rankdir=LR;"
 echo "  node [shape=box, fontsize=10, fontname=\"consolas\", margin=\"0.3,0.055\"];"
 getDependencies "dataone-cn-os-core"
