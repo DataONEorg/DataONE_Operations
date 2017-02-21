@@ -1,0 +1,664 @@
+#!/usr/bin/env python
+"""Create a digest of log records matching a regex
+"""
+
+import argparse
+import codecs
+import contextlib
+import cPickle as pickle
+import cStringIO as StringIO
+import datetime
+import difflib
+import gzip
+import logging
+import multiprocessing
+import os
+import pprint
+import re
+import sys
+import textwrap
+
+OUT_DIR_PATH = '/tmp'
+
+LOG_DIR_PATH_LIST = [
+  '/var/log/dataone',
+  '/var/metacat/logs',
+  # '/var/log/dataone/synchronize', # Use a single folder for faster debugging
+]
+
+# Defaults (override with command line args)
+
+# Only max age is typically used. Leaving min age at None causes all records
+# more recent than max age to be processed.
+MAX_RECORD_AGE_HOURS = 1 * 31 * 24 # None = don't filter old log records
+MIN_RECORD_AGE_HOURS = None # None = until now
+MAX_RECORDS_PER_TYPE = 25
+MAX_LINES_PER_RECORD = 200
+MAX_LINE_WIDTH = 120
+SIMILAR_RATIO_THRESHOLD = 0.8
+
+
+def main():
+  args = parse_cmd_line_args()
+  log_setup(args.debug)
+  sys.stdout = codecs.getwriter('utf8')(sys.stdout)
+  sys.stderr = codecs.getwriter('utf8')(sys.stderr)
+  now_dt = datetime.datetime.now()
+  generate_time_sequence_digest(
+    LOG_DIR_PATH_LIST, args.regex, now_dt, args.max_record_age_hours,
+    args.min_record_age_hours, args.max_lines_per_record,
+    args.max_records_per_type, args.max_line_width
+  )
+
+
+def parse_cmd_line_args():
+  parser = argparse.ArgumentParser(description='Create CN log digest')
+  parser.add_argument(
+    '--debug', action='store_true', default=False, help='Debug level logging'
+  )
+  parser.add_argument('regex', action='store', help='Filter regex')
+  parser.add_argument(
+    '--max-record', dest='max_record_age_hours', action='store',
+    default=MAX_RECORD_AGE_HOURS, help='Max record age to search (hours)'
+  )
+  parser.add_argument(
+    '--min-record', dest='min_record_age_hours', action='store',
+    default=MIN_RECORD_AGE_HOURS, help='Min record age to search (hours)'
+  )
+  parser.add_argument(
+    '--max-lines', dest='max_lines_per_record', action='store',
+    default=MAX_LINES_PER_RECORD,
+    help='Max lines to search for start of logical record'
+  )
+  parser.add_argument(
+    '--max-per-typetype', dest='max_records_per_type', action='store',
+    default=MAX_RECORDS_PER_TYPE,
+    help='Max records to display for each log type'
+  )
+  parser.add_argument(
+    '--max_line_width', dest='max_line_width', action='store',
+    default=MAX_LINE_WIDTH, help='Max line length before wrapping'
+  )
+  return parser.parse_args()
+
+
+def generate_time_sequence_digest(
+  log_dir_path_list, rx_str, now_dt, max_record_age_hours, min_record_age_hours,
+  max_lines_per_record, max_records_per_type, max_line_width
+):
+  from_dt, to_dt = rel_to_abs_timespan(
+    now_dt, max_record_age_hours, min_record_age_hours
+  )
+  log_group_dict, log_list, eligible_log_list = find_and_group_eligible_log_files(
+    log_dir_path_list, from_dt, to_dt, max_lines_per_record
+  )
+  record_list = read_all_matching_log_records(
+    log_group_dict, from_dt, to_dt, rx_str, max_records_per_type,
+    max_lines_per_record
+  )
+  # with open('log-digest.pickle', 'wb') as f:
+  #   pickle.dump(latest_first_record_list, f)
+  # exit()
+  digest_file_path = os.path.join(
+    OUT_DIR_PATH, u'{}_{}.logdigest.txt'.format(
+      now_dt.isoformat(), re.sub(r'\W', '-', rx_str)
+    )
+  )
+  report_str = format_time_sequence_digest(
+    record_list, max_line_width, now_dt, rx_str, from_dt, to_dt, len(log_list),
+    len(eligible_log_list), len(log_group_dict), max_records_per_type
+  )
+  with codecs.open(digest_file_path, 'w', encoding='utf8') as f:
+    f.write(report_str)
+  logging.debug(report_str)
+  logging.info(
+    u'Wrote digest to file. walltime="{}" path="{}"'.
+    format(format_walltime(now_dt), digest_file_path)
+  )
+
+
+def log_setup(is_debug):
+  formatter = logging.Formatter(
+    '%(asctime)s %(levelname)-8s %(message)s', '%y/%m/%d %H:%M:%S'
+  )
+  console_logger = logging.StreamHandler(sys.stderr)
+  console_logger.setFormatter(formatter)
+  logging.getLogger('').addHandler(console_logger)
+  if is_debug:
+    logging.getLogger('').setLevel(logging.DEBUG)
+  else:
+    logging.getLogger('').setLevel(logging.INFO)
+
+
+def rel_to_abs_timespan(now_dt, max_record_age_hours, min_record_age_hours):
+  return (
+    now_dt - datetime.timedelta(hours=max_record_age_hours) \
+      if MAX_RECORD_AGE_HOURS else None,
+    now_dt - datetime.timedelta(hours=min_record_age_hours) \
+      if MIN_RECORD_AGE_HOURS else None
+  )
+
+
+def format_walltime(start_dt):
+  return format_time_delta(
+    datetime.datetime.now() - start_dt,
+    '{hours:02d}:{minutes:02d}:{seconds:02d}'
+  )
+
+#
+# Log files
+#
+
+
+def find_and_group_eligible_log_files(
+  log_dir_path_list, from_dt, to_dt, max_lines_per_record
+):
+  log_list = search_and_parse_log_files(log_dir_path_list)
+  logging.info('Found {} log files'.format(len(log_list)))
+  eligible_log_list = filter_eligible_log_files(
+    log_list, from_dt, to_dt, max_lines_per_record
+  )
+  logging.info('Found {} eligible log files'.format(len(eligible_log_list)))
+  sorted_log_list = sort_logrotate(eligible_log_list)
+  return group_log_files_by_type(sorted_log_list), log_list, eligible_log_list
+
+
+def search_and_parse_log_files(log_dir_path_list):
+  """Search recursively for log files below log directories. Parse the log
+  filenames and ignore filenames not fitting the expected format (probably not
+  logs).
+  """
+  log_list = []
+  for log_dir_path in log_dir_path_list:
+    for root_dir, dir_list, file_list in os.walk(log_dir_path):
+      for file_name in file_list:
+        file_path = os.path.join(root_dir, file_name)
+        try:
+          log_dict = parse_log_path(file_path)
+        except DigestError as e:
+          logging.debug(e.message)
+          continue
+        logging.debug(u'Found log file. path="{}"'.format(log_dict['path']))
+        log_list.append(log_dict)
+  return log_list
+
+
+def parse_log_path(log_path):
+  m = re.match(r'(.*)\.(log|err)(\.(\d+))?(\.gz)?$', log_path)
+  if not m:
+    raise DigestError(u'Not a log path. path="{}"'.format(log_path))
+  return {
+    'path': log_path,
+    'type_str': os.path.split(m.group(1))[1],
+    'index_int': int(m.group(4)) if m.group(4) else 0,
+    'is_gz': m.group(5) is not None,
+  }
+
+
+def filter_eligible_log_files(log_list, from_dt, to_dt, max_lines_per_record):
+  logging.info('Filtering eligible log files...')
+  return [
+    d for d in log_list if is_eligible(d, from_dt, to_dt, max_lines_per_record)
+  ]
+
+
+def sort_logrotate(log_list):
+  return sorted(log_list, key=lambda x: (x['type_str'], x['index_int']))
+
+
+def filter_record_list_on_level(record_list, level_str):
+  return [r for r in record_list if r['level_str'] == level_str]
+
+
+def group_log_files_by_type(log_list):
+  log_group_dict = {}
+  for log_dict in log_list:
+    log_group_dict.setdefault(log_dict['type_str'], []).append(log_dict)
+  return log_group_dict
+
+#
+# Log records
+#
+
+
+def read_all_matching_log_records(
+  log_group_dict, from_dt, to_dt, rx_str, max_records_per_type,
+  max_lines_per_record
+):
+  num_cores = multiprocessing.cpu_count()
+  logging.info('Creating pool of {} workers'.format(num_cores))
+  pool = multiprocessing.Pool(processes=num_cores)
+  record_list = []
+  for type_str, log_list in log_group_dict.items():
+    logging.info(u'Searching logs. type="{}"'.format(type_str))
+    type_record_list_list = read_matching_log_records_from_logtype(
+      pool, log_list, from_dt, to_dt, rx_str, max_lines_per_record
+    )
+    for type_record_list in type_record_list_list:
+      record_list.extend(type_record_list)
+    num_records = len(record_list)
+    if num_records > max_records_per_type:
+      record_list = record_list[:max_records_per_type]
+      logging.info(
+        u'Exceeded max records allowed for type. '
+        u'Deleted extra records. found={}, deleted={}, max={} type="{}"'.format(
+          num_records, num_records - max_records_per_type, max_records_per_type, type_str
+        )
+      )
+  pool.close()
+  pool.join()
+  return record_list
+
+
+def read_matching_log_records_from_logtype(
+  pool, log_list, from_dt, to_dt, rx_str, max_lines_per_record
+):
+  copy_args_into_dict_list(
+    log_list, from_dt=from_dt, to_dt=to_dt, rx_str=rx_str,
+    max_lines_per_record=max_lines_per_record
+  )
+  return pool.map(read_matching_log_records_from_file, log_list)
+
+
+def copy_args_into_dict_list(log_list, **arg_dict):
+  """multiprocessing.Pool.map() takes only a single list as argument. To pass
+  additional args, we copy them into the list."""
+  for log_dict in log_list:
+    log_dict.update(arg_dict)
+
+
+def read_matching_log_records_from_file(map_dict):
+  logging.info(
+    'Searching log. type="{}" path="{}"'.
+    format(map_dict['type_str'], map_dict['path'])
+  )
+  with open_log_file(map_dict) as f:
+    return [
+      record_dict
+      for record_dict in filtered_logical_record_iter(
+        f, map_dict['from_dt'], map_dict['to_dt'], map_dict['rx_str'],
+        map_dict['type_str'], map_dict['max_lines_per_record']
+      )
+    ]
+
+
+@contextlib.contextmanager
+def open_log_file(map_dict):
+  if map_dict['is_gz']:
+    logging.debug(u'Opening gzip file. path="{}"'.format(map_dict['path']))
+    open_fun = gzip.open
+  else:
+    logging.debug(
+      u'Opening uncompressed file. path="{}"'.format(map_dict['path'])
+    )
+    open_fun = open
+  try:
+    with open_fun(map_dict['path'], 'r') as f:
+      yield f
+  except EnvironmentError as e:
+    raise DigestError(str(e))
+
+
+def filtered_logical_record_iter(
+  f, from_dt, to_dt, rx_str, type_str, max_lines_per_record
+):
+  for record_str in logical_record_iter(f, max_lines_per_record):
+    try:
+      record_dict = parse_line(record_str)
+    except DigestError as e:
+      logging.debug(e.message)
+      continue
+    if from_dt and from_dt > record_dict['time_dt']:
+      continue
+    if to_dt and to_dt < record_dict['time_dt']:
+      continue
+    if not re.search(rx_str, record_dict['msg_str']):
+      continue
+    record_dict['type_str'] = type_str
+    yield record_dict
+
+
+def logical_record_iter(f, max_lines_per_record):
+  """Combine records containing multiple lines (xml docs, stack traces, etc)
+  into single logical records.
+  """
+  stream_reader = codecs.getreader("utf8")(f)
+  record_list = []
+  for line_str in stream_reader:
+    line_str = line_str.strip()
+    if is_main_log_line(line_str) or len(record_list) == max_lines_per_record:
+      if record_list:
+        yield r'\n'.join(record_list)
+        record_list = []
+    record_list.append(line_str.rstrip())
+  if record_list:
+    yield r'\n'.join(record_list)
+
+
+def is_main_log_line(line_str):
+  try:
+    parse_line(line_str)
+  except DigestError:
+    return False
+  return True
+
+
+def parse_line(line_str):
+  """Parse the logical records and filter out any records that were written
+  outside of the given timespan and which don't match the given regex.
+  """
+  # [DEBUG] 2016-10-26 23:18:49,573 msg
+  m = re.match(
+    r'\[\s*([A-Z]+)\] (\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d),(\d+) (.*)',
+    line_str
+  )
+  if m:
+    return {
+      'level_str': m.group(1).lower(),
+      'time_dt': datetime.datetime(*[int(d) for d in m.groups()[1:8]]),
+      'msg_str': m.group(9),
+    }
+  # 2016-10-26 23:18:49 UTC: msg
+  m = re.match(
+    r'(\d{4})-(\d\d)-(\d\d) (\d\d):(\d\d):(\d\d) UTC: (.*)',
+    line_str,
+  )
+  if m:
+    return {
+      'level_str': 'debug',
+      'time_dt': datetime.datetime(*[int(d) for d in m.groups()[0:6]]),
+      'msg_str': m.group(7),
+    }
+  # metacat 20170118-22:00:35: [INFO]: msg
+  m = re.match(
+    r'(.*) (\d{4})(\d\d)(\d\d)-(\d\d):(\d\d):(\d\d): \[\s*([A-Z]+)\]: (.*)',
+    line_str
+  )
+  if m:
+    return {
+      'level_str': m.group(8).lower(),
+      'time_dt': datetime.datetime(*[int(d) for d in m.groups()[1:7]]),
+      'msg_str': m.group(9),
+    }
+  # metacat 2017-01-12T09:22:51: [DEBUG]: msg
+  m = re.match(
+    r'(.*) (\d{4})-(\d\d)-(\d\d)T(\d\d):(\d\d):(\d\d): \[\s*([A-Z]+)\]: (.*)',
+    line_str
+  )
+  if m:
+    return {
+      'level_str': m.group(8).lower(),
+      'time_dt': datetime.datetime(*[int(d) for d in m.groups()[1:7]]),
+      'msg_str': m.group(9),
+    }
+  raise DigestError(u'Unknown log format. line="{}"'.format(line_str[:128]))
+
+
+def sort_record_list_latest_first(record_list):
+  return list(reversed(sorted(record_list, key=lambda x: x['time_dt'])))
+
+
+def is_eligible(log_dict, from_dt, to_dt, max_lines_per_record):
+  """An eligible log file:
+   - Can be opened for read (user has read permissions and file is not locked)
+   - Has one or more log records that match one of the parsed formats
+   - Has one or more records within the query timespan
+  """
+  try:
+    return has_records_after(log_dict, from_dt, max_lines_per_record) and \
+           has_records_before(log_dict, to_dt)
+  except DigestError as e:
+    logging.debug(e.message)
+  return False
+
+
+def has_records_after(log_dict, from_dt, max_lines_per_record):
+  if from_dt is None:
+    return True
+  first_record_dt = get_first_record_timestamp(log_dict, max_lines_per_record)
+  logging.debug(
+    u'Found valid first record in log. path="{}" dt="{}"'.
+    format(log_dict['path'], first_record_dt)
+  )
+  return first_record_dt >= from_dt
+
+
+def has_records_before(log_dict, to_dt):
+  if to_dt is None:
+    return True
+  last_record_dt = get_last_record_timestamp(log_dict)
+  logging.debug(
+    u'Found valid last record in log. path="{}" dt="{}"'.
+    format(log_dict['path'], last_record_dt)
+  )
+  return last_record_dt <= to_dt
+
+
+def get_first_record_timestamp(log_dict, max_lines_per_record):
+  with open_log_file(log_dict) as f:
+    for i, record_str in enumerate(
+      logical_record_iter(f, max_lines_per_record)
+    ):
+      if i == 100:
+        break
+      try:
+        return parse_line(record_str)['time_dt']
+      except DigestError as e:
+        logging.debug(e.message)
+    raise DigestError(
+      u'No valid first record in log. path="{}"'.format(log_dict['path'])
+    )
+
+
+def get_last_record_timestamp(log_dict):
+  with open_log_file(log_dict) as f:
+    for i, record_str in enumerate(reverse_readline(f)):
+      if i == 100:
+        break
+      try:
+        return parse_line(record_str)['time_dt']
+      except DigestError as e:
+        logging.debug(e.message)
+    raise DigestError(
+      u'No valid last record in log. path="{}"'.format(log_dict['path'])
+    )
+
+
+def reverse_readline(f, buf_size=8192):
+  """Generator that returns the lines of a file in reverse order
+  http://stackoverflow.com/questions/2301789/read-a-file-in-reverse-order-using-python
+  """
+  segment = None
+  offset = 0
+  f.seek(0, os.SEEK_END)
+  file_size = remaining_size = f.tell()
+  while remaining_size > 0:
+    offset = min(file_size, offset + buf_size)
+    f.seek(file_size - offset)
+    buf = f.read(min(remaining_size, buf_size))
+    remaining_size -= buf_size
+    lines = buf.split('\n')
+    # the first line of the buffer is probably not a complete line so
+    # we'll save it and append it to the last line of the next buffer
+    # we read
+    if segment is not None:
+      # if the previous chunk starts right from the beginning of line
+      # do not concact the segment to the last line of new chunk
+      # instead, yield the segment first
+      if buf[-1] is not '\n':
+        lines[-1] += segment
+      else:
+        yield segment
+    segment = lines[0]
+    for index in range(len(lines) - 1, 0, -1):
+      if len(lines[index]):
+        yield lines[index]
+  # Don't yield None if the file was empty
+  if segment is not None:
+    yield segment
+
+#
+# Reports
+#
+
+
+def format_time_sequence_digest(
+  record_list, max_line_width, now_dt, rx_str, from_dt, to_dt, num_log_files,
+  num_used_log_files, num_log_types, max_records_per_type
+):
+  latest_first_record_list = sort_record_list_latest_first(record_list)
+  record_str_list = []
+  for record_dict in latest_first_record_list:
+    record_str_list.append(
+      format_event_sequence_record(record_dict, max_line_width, now_dt)
+    )
+  s = StringIO.StringIO()
+  s.write('TIME SEQUENCE DIGEST\n\n')
+  s.write(
+    'GENERATED="{}"  REGEX="{}"  GENERATE_WALLTIME="{}"  FROM="{}"  TO="{}"\n'
+    .format(
+      format_time(now_dt), rx_str, format_walltime(now_dt),
+      format_time(from_dt), format_time(to_dt)
+    )
+  )
+  s.write(
+    'TOTAL_LOG_FILES={}  USED_LOG_FILES={}  USED_RECORDS={}  '
+    'MAX_RECORDS_PER_TYPE={}  LOG_TYPES={}\n\n\n'.format(
+      num_log_files, num_used_log_files, len(record_list), max_records_per_type,
+      num_log_types
+    )
+  )
+  s.write(('~' * 4 + '\n\n').join(record_str_list))
+  return s.getvalue()
+
+
+def format_event_sequence_record(record_dict, max_line_width, now_dt):
+  """Format the logical records for display by splitting them to separate lines,
+  matching the original record in the log file, then wrapping long lines, using
+  indentation to show what was originally on the same line.
+  """
+  s = StringIO.StringIO()
+  s.write(
+    'AGE="{}"  TIME="{}"  LOG="{}"  LEVEL="{}"\n\n{}\n'.format(
+      format_age(record_dict, now_dt),
+      format_time(record_dict['time_dt']),
+      record_dict['type_str'].upper(),
+      record_dict['level_str'].upper(),
+      format_logical_record(record_dict, max_line_width),
+    )
+  )
+  return s.getvalue()
+
+
+def write_logtype_digest(digest_file_path, latest_first_record_list):
+  pass
+
+
+def format_age(record_dict, now_dt):
+  return format_time_delta(
+    now_dt - record_dict['time_dt'], '{days}d {hours}h {minutes}m'
+  )
+
+
+def group_similar_records(record_list, similar_ratio_threshold):
+  """Iterate over the number of logical records that are wanted for the digest,
+  most recent first. Compare the current logical record with all older records
+  that have not been tagged as previously counted. When a similar record is
+  found, count it as similar and tag it as counted. Iterate over the number of
+  logical records that have been specified for the digest, most recent first.
+  """
+  num_records_checked = 0
+  for i, record_dict in enumerate(record_list):
+    logging.debug('{} / {}'.format(i + 1, len(record_list)))
+    if 'counted_as_similar' in record_dict:
+      continue
+    record_dict['similar_int'] = 0
+    for later_record_dict in record_list[i + 1:]:
+      if are_similar(
+        later_record_dict['msg_str'], record_dict['msg_str'],
+        similar_ratio_threshold
+      ):
+        record_dict['similar_int'] += 1
+        later_record_dict['counted_as_similar'] = True
+    num_records_checked += 1
+
+
+def are_similar(msg_a, msg_b, similar_ratio_threshold):
+  return difflib.SequenceMatcher(None, msg_a, msg_b
+                                 ).ratio() > similar_ratio_threshold
+  # return not (difflib.SequenceMatcher(None, msg_a, msg_b
+  #                                ).quick_ratio() < similar_ratio_threshold)
+
+
+def format_digest_section(
+  type_str, level_str, record_list, now_dt, max_records_per_type, max_line_width
+):
+  s = StringIO.StringIO()
+  s.write('#' * max_line_width + '\n')
+  s.write('{} - {}\n'.format(type_str.upper(), level_str.upper()))
+  s.write('#' * max_line_width + '\n\n')
+  for record_dict in record_list[:max_records_per_type]:
+    if 'counted_as_similar' in record_dict:
+      continue
+    s.write(
+      'LATEST="{}"  AGE="{}"  SIMILAR={}\n'.format(
+        record_dict['time_dt'],
+        format_time_delta(
+          now_dt - record_dict['time_dt'], '{days}d {hours}h {minutes}m'
+        ),
+        record_dict['similar_int'],
+      )
+    )
+    s.write('-' * max_line_width + '\n\n')
+    s.write(format_logical_record(record_dict, max_line_width))
+    msg_list = record_dict['msg_str'].split(r'\n')
+    for msg_line_str in msg_list:
+      indent_spaces_str = re.match(r'(\s*)', msg_line_str).group(1)
+      wrap_line_str = textwrap.fill(
+        msg_line_str, max_line_width, subsequent_indent=indent_spaces_str + '  '
+      )
+      s.write(wrap_line_str + '\n')
+    s.write('\n')
+  return s.getvalue()
+
+
+def format_logical_record(record_dict, max_line_width):
+  """Format the logical records for display by splitting them to separate lines,
+  matching the original record in the log file, then wrapping long lines, using
+  indentation to show what was originally on the same line.
+  """
+  s = StringIO.StringIO()
+  msg_list = record_dict['msg_str'].split(r'\n')
+  for msg_line_str in msg_list:
+    indent_spaces_str = re.match(r'(\s*)', msg_line_str).group(1)
+    wrap_line_str = textwrap.fill(
+      msg_line_str, max_line_width, subsequent_indent=indent_spaces_str + '  '
+    )
+    s.write(wrap_line_str + '\n')
+  return s.getvalue()
+
+
+def format_time_delta(tdelta, fmt):
+  d = {"days": tdelta.days}
+  d["hours"], rem = divmod(tdelta.seconds, 3600)
+  d["minutes"], d["seconds"] = divmod(rem, 60)
+  return fmt.format(**d)
+
+
+def format_time(dt):
+  if dt is None:
+    return '<unset>'
+  return datetime.datetime.strftime(dt, '%Y-%m-%y %H:%M:%S')
+
+
+class DigestError(Exception):
+  pass
+
+
+if __name__ == '__main__':
+  try:
+    # import cProfile
+    # cProfile.run('main()', sort='cumulative')
+    main()
+  except KeyboardInterrupt:
+    pass
