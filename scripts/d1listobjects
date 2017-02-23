@@ -1,7 +1,7 @@
 #!/bin/env python
 
 """
-List facet values from solr
+List objects from a CN or MN using the listObjects API
 """
 
 import sys
