@@ -29,7 +29,7 @@ def doResolve(pid, environments, configuration):
     if client is None:
       client = cnclient_2_0.CoordinatingNodeClient_2_0(configuration.envPrimaryBaseURL(env),
                                                        api_major=2,
-                                                       capture_response_body=True)
+                                                       allow_redirects=False)
     else:
       client.set_base_url(configuration.envPrimaryBaseURL(env))
     logger.info("Resolving %s in %s", pid, env)

@@ -7,6 +7,7 @@ import logging
 import codecs
 import json
 import pprint
+import d1_nodes
 
 ENCODING = 'utf-8'
 CONFIG_FOLDER = os.path.join( os.getenv("HOME"), ".dataone" )
@@ -79,6 +80,24 @@ class D1Configuration( object ):
     return "https://{0}{1}".format(env['host'], env['base'])
 
 
+  def envPrimaryNodeId(self, environment):
+    env = self.config['environments'][environment]['primary']
+    return env['id']
+
+
+  def envNodes(self, environment):
+    '''
+    Return the list of nodes for the specified environment.
+
+    Note that the nodes are not loaded into the node structure until .load() is called.
+
+    :param environment: name of environment
+    :return: instance of d1_nodes.Nodes
+    '''
+    nodes = d1_nodes.Nodes(self.envPrimaryBaseURL(environment))
+    return nodes
+
+
   def hosts(self, environment):
     '''
     Return a list of host names for the specified environment
@@ -125,27 +144,27 @@ class D1Configuration( object ):
     self.config['version'] = '1.1.0'
 
     #Initialize the various environment settings
-    self.config['environments'] = {'production': {'primary': {'host':'cn.dataone.org', 'base':'/cn', },
-                                                  'cns': [{'host':'cn-ucsb-1.dataone.org','base':'/cn', },
-                                                          {'host':'cn-unm-1.dataone.org','base':'/cn', },
-                                                          {'host':'cn-orc-1.dataone.org','base':'/cn', },
+    self.config['environments'] = {'production': {'primary': {'host':'cn.dataone.org', 'base':'/cn', 'id': 'urn:node:CN', },
+                                                  'cns': [{'host':'cn-ucsb-1.dataone.org','base':'/cn',},
+                                                          {'host':'cn-unm-1.dataone.org','base':'/cn',},
+                                                          {'host':'cn-orc-1.dataone.org','base':'/cn',},
                                                           ],
                                                   'login':{'cert':'https://cilogon.org/?skin=dataone',
                                                            'token':''},
                                                   'postgres': {'readonly': 'dataone_readonly',
                                                                'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                   },
-                                   'stage': {'primary': {'host':'cn-stage.test.dataone.org', 'base':'/cn', },
-                                             'cns': [{'host':'cn-stage-ucsb-1.test.dataone.org', 'base':'/cn', },
+                                   'stage': {'primary': {'host':'cn-stage.test.dataone.org', 'base':'/cn', 'id':'urn:node:cnStage', },
+                                             'cns': [{'host':'cn-stage-ucsb-1.test.dataone.org', 'base':'/cn',  },
                                                      {'host':'cn-stage-orc-1.test.dataone.org', 'base':'/cn', },
-                                                     {'host':'cn-stage-unm-1.test.dataone.org', 'base':'/cn', },
+                                                     {'host':'cn-stage-unm-1.test.dataone.org', 'base':'/cn',},
                                                      ],
                                              'login': {'cert': 'https://cilogon.org/?skin=dataonestage',
                                                        'token': ''},
                                              'postgres': {'readonly': 'dataone_readonly',
                                                           'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                              },
-                                   'stage-2': {'primary': {'host':'cn-stage-2.test.dataone.org', 'base':'/cn', },
+                                   'stage-2': {'primary': {'host':'cn-stage-2.test.dataone.org', 'base':'/cn', 'id':'urn:node:cnStage2'},
                                                'cns': [{'host':'cn-stage-unm-2.test.dataone.org', 'base':'/cn', },
                                                        ],
                                                'login': {'cert': 'https://cilogon.org/?skin=dataonestage2',
@@ -153,7 +172,7 @@ class D1Configuration( object ):
                                                'postgres': {'readonly': 'dataone_readonly',
                                                             'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                },
-                                   'sandbox': {'primary': {'host':'cn-sandbox.test.dataone.org', 'base':'/cn', },
+                                   'sandbox': {'primary': {'host':'cn-sandbox.test.dataone.org', 'base':'/cn', 'id':'urn:node:cnSandbox', },
                                                'cns': [{'host':'cn-sandbox-ucsb-1.test.dataone.org', 'base':'/cn', },
                                                        {'host':'cn-sandbox-orc-1.test.dataone.org', 'base':'/cn', },
                                                        {'host':'cn-sandbox-unm-1.test.dataone.org', 'base':'/cn', },
@@ -163,7 +182,7 @@ class D1Configuration( object ):
                                                'postgres': {'readonly': 'dataone_readonly',
                                                             'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                },
-                                   'sandbox-2': {'primary': {'host':'cn-sandbox-2.test.dataone.org', 'base':'/cn', },
+                                   'sandbox-2': {'primary': {'host':'cn-sandbox-2.test.dataone.org', 'base':'/cn',  'id':'urn:node:cnSandbox2',},
                                                  'cns': [{'host':'cn-sandbox-ucsb-2.test.dataone.org', 'base':'/cn', },
                                                          ],
                                                  'login': {'cert': 'https://cilogon.org/?skin=dataonesandbox2',
@@ -171,7 +190,7 @@ class D1Configuration( object ):
                                                  'postgres': {'readonly': 'dataone_readonly',
                                                               'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                                  },
-                                   'dev': {'primary': {'host':'cn-dev.test.dataone.org', 'base':'/cn', },
+                                   'dev': {'primary': {'host':'cn-dev.test.dataone.org', 'base':'/cn',  'id':'urn:node:cnDev',},
                                            'cns': [{'host':'cn-dev-ucsb-1.test.dataone.org', 'base':'/cn', },
                                                    {'host':'cn-dev-orc-1.test.dataone.org', 'base':'/cn', },
                                                    {'host':'cn-dev-unm-1.test.dataone.org', 'base':'/cn', },
@@ -181,7 +200,7 @@ class D1Configuration( object ):
                                            'postgres': {'readonly': 'dataone_readonly',
                                                         'pg_hba.conf': '/etc/postgresql/9.3/main/pg_hba.conf'},
                                            },
-                                   'dev-2': {'primary': {'host':'cn-dev-2.test.dataone.org', 'base':'/cn', },
+                                   'dev-2': {'primary': {'host':'cn-dev-2.test.dataone.org', 'base':'/cn',  'id':'urn:node:cnDev2',},
                                              'cns': [{'host':'cn-dev-ucsb-2.test.dataone.org', 'base':'/cn', },
                                                      {'host':'cn-dev-unm-2.test.dataone.org', 'base':'/cn', },
                                                      ],

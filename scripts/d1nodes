@@ -22,10 +22,10 @@ def doListNodes(config, env, node_type='all'):
   '''
   logger = logging.getLogger('main')
   client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env),
-                                                   api_major=2,
-                                                   capture_response_body=True)
-  nodes = client.listNodes()
-  result = {'xml': client.last_response_body,
+                                                   api_major=2)
+  nodes_response = client.listNodesResponse()
+  nodes = client._read_dataone_type_response(nodes_response, 'NodeList')
+  result = {'xml': nodes_response.content,
             'items': []}
   for node in nodes.node:
     row = {'nodeId': node.identifier.value(),

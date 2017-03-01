@@ -214,11 +214,15 @@ def resolve(client, pid):
               'xml': None,
               }
   try:
-    obj_locs = client.resolve(pid)
+    res = client.resolveResponse(pid)
+    obj_locs = client._read_dataone_type_response(
+      res, 'ObjectLocationList', response_is_303_redirect=True
+    )
     response['status']['msg'] = 'OK'
-    response['status']['code'] = client.status_code
-    response['xml'] = client.last_response_body #dom.toprettyxml(indent="  ")
+    response['status']['code'] = res.status_code
+    response['xml'] = res.content #dom.toprettyxml(indent="  ")
     response['identifier'] = unicode(obj_locs.identifier.value())
+    response['id_is_sid'] = not (pid == response['identifier'])
     response['objectLocation'] = []
     for loc in obj_locs.objectLocation:
       oloc = {'url': unicode(loc.url),
@@ -229,6 +233,6 @@ def resolve(client, pid):
       response['objectLocation'].append(oloc)
   except Exception as e:
     logger.info(e)
-    response['status']['msg'] = e.description
-    response['status']['code'] = e.errorCode
+    response['status']['msg'] = unicode(e)
+    #response['status']['code'] = e.errorCode
   return response
