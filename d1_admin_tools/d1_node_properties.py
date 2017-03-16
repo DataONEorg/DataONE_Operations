@@ -35,13 +35,17 @@ Example: find node properties for NodeID:
    -b "cn=urn:node:mnDemo6,dc=dataone,dc=org" \
    -s one -a always -z 1000 -LLL \
    "(objectClass=d1NodeProperty)"
+
+Python ldap examples:
+
+  http://www.grotan.com/ldap/python-ldap-samples.html
 '''
 
 import logging
 from pprint import pprint
 import ldap
 from ldap import modlist
-from d1_admin_tools import operations
+from d1_admin_tools.operations import expandNodeID
 
 # The list of protected node properties
 ALLOWED_PROPERTIES = [
@@ -176,17 +180,21 @@ if __name__ == "__main__":
   import sys
   import getpass
   logging.basicConfig(level=logging.DEBUG)
-  print('''Make sure you have an LDAP connection on port 3890 by doing something
-like:
+  print('''
+Make sure you have an LDAP connection on port 3890 by doing something like:
 
   ssh -L3890:localhost:389 cn-dev-ucsb-1.test.dataone.org
-
   ''')
   passwd = getpass.getpass("What's the LDAP password: ")
   con = getLDAPConnection(password=passwd)
   
   node_id = raw_input("Node ID: ")
   res = readNodeProperty(con, node_id, "*")
-  print("Properties set on {0}:".format(node_id))
+  dn = node_id
+  if len(res) > 0:
+    dn = res[0][0]
+  print("----")
+  print("Properties set on {0}:".format(dn))
+  print("  {0:15}  {1} ".format("Key","Value"))
   for entry in res:
-    print("{0}: {1}".format(entry[2], entry[3]))
+    print("  {0:15}  {1}".format(entry[2], entry[3]))
