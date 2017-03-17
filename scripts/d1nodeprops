@@ -98,7 +98,7 @@ def main():
   results = d1np.readNodeProperty(conn, args.nodeid, the_key)
   if args.format == 'json':
     import json
-    json.dumps(results)
+    print( json.dumps(results) )
   else:
     #text
     dn = args.nodeid
