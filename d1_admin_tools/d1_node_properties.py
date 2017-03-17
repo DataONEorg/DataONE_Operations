@@ -172,7 +172,12 @@ def createOrUpdateNodeProperty(con, node_id, key, value):
   '''
   res = readNodeProperty(con, node_id, key)
   if len(res) == 0:
+    if value is None:
+      # A null value deletes, but there's nothing to delete
+      return None
     return createNodeProperty(con, node_id, key, value)
+  if value is None:
+    return deleteNodeProperty(con, node_id, key)
   return updateNodeProperty(con, node_id, key, value, old_value=res[0][3])
 
 
