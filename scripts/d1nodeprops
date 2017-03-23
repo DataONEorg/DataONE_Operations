@@ -1,0 +1,115 @@
+'''
+CRUD operations on protected node properties.
+
+IMPORTANT:
+  This script won't work without a direct or tunnelled connection to a CN
+  LDAP server. e.g.:
+
+    ssh -L3890:localhost:389 cn-dev-ucsb-1.test.dataone.org
+
+  LDAP will then be available on port 3890 on your machine.
+
+Protected node properties are set directly in the node document store (i.e. LDAP) on the CN and are not updated by changes to a Member Node node document.
+
+Protected node properties are all key, value entries that appear in the node document Properties element with a key prefix of "CN_"
+
+Example: add an entry:
+
+  dn: d1NodePropertyId=CN_logo_url_2,cn=urn:node:mnDemo6,dc=dataone,dc=org
+  changetype: add
+  objectClass: top
+  objectClass: d1NodeProperty
+  d1NodeId: urn:node:mnDemo6
+  d1NodePropertyId: CN_logo_url_2
+  d1NodePropertyKey: CN_logo_url
+  d1NodePropertyValue: https://raw.github.com
+
+Example: delete an entry:
+
+dn: d1NodePropertyId=CN_logo_url_2,cn=urn:node:mnDemo6,dc=dataone,dc=org
+changetype: delete
+
+Example: find node properties for NodeID:
+
+  ldapsearch -H ldap://localhost -D cn=admin,dc=dataone,dc=org -w PASSWORD \
+   -b "cn=urn:node:mnDemo6,dc=dataone,dc=org" \
+   -s one -a always -z 1000 -LLL \
+   "(objectClass=d1NodeProperty)"
+
+
+Properties are in a Google Sheet. It can be read as a CSV from:
+
+https://docs.google.com/spreadsheets/d/ -- DOC ID -- /export?format=csv#gid=0
+
+[See http://www.instructables.com/id/Export-data-from-google-spreadsheet-in-required-CS/step2/Edit-the-URL-to-get-CSV-values-from-google/ ]
+'''
+import sys
+import logging
+import argparse
+import d1_admin_tools
+from d1_admin_tools import d1_node_properties as d1np
+
+#=== main ===
+
+def main():
+  defaults = {'format':['text', 'json'],
+              }
+  parser = argparse.ArgumentParser(description='List nodes in an environment.')
+  parser.add_argument('-H', '--host',
+                      default='ldap://localhost:3890',
+                      help='LDAP host, as URL (ldap://localhost:3890)')
+  parser.add_argument('-I', '--nodeid',
+                      action='store',
+                      help='ID of MN for which properties are being edited')
+  parser.add_argument('-k', '--key',
+                      default='*',
+                      help='Property to set ({0})'.format( \
+                         " ,".join(d1np.ALLOWED_PROPERTIES)))
+  parser.add_argument('-o', '--operation',
+                      default='read',
+                      help='Operation to perform (read or update)') 
+  parser.add_argument('-p', '--password',
+                      default=None,
+                      help='LDAP bind password for cn=admin,dc=dataone,dc=org')
+  parser.add_argument('value',
+                      nargs='?',
+                      default=None,
+                      help='Value of property to set, no value update deletes')
+  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
+  if args.nodeid is None:
+    print("nodeid is requried")
+    return 1
+  operation = args.operation.lower()
+  if operation not in ['read', 'update']:
+    print("operation must be one of 'read' or 'update', not '{0}'".format(operation))
+    return 1
+  the_key = args.key
+  conn = d1np.getLDAPConnection(host=args.host,
+                                password=args.password)
+  if operation == 'update':
+    if the_key not in d1np.ALLOWED_PROPERTIES:
+      print("Key must be one of: {0}".format( \
+                         " ,".join(d1np.ALLOWED_PROPERTIES)))
+      return 1
+    d1np.createOrUpdateNodeProperty(conn, args.nodeid, args.key, args.value)
+    the_key = '*'
+    
+  results = d1np.readNodeProperty(conn, args.nodeid, the_key)
+  if args.format == 'json':
+    import json
+    json.dumps(results)
+  else:
+    #text
+    dn = args.nodeid
+    if len(results) > 0:
+      dn = results[0][0]
+    print("DN: {0}".format(dn))
+    print("{0:15}  {1} ".format("Key","Value"))
+    for entry in results:
+      print("{0:15}  {1}".format(entry[2], entry[3]))
+  conn.unbind_s()
+
+
+if __name__ == "__main__":
+  sys.exit( main() )
