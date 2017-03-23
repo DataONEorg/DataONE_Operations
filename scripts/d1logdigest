@@ -507,8 +507,8 @@ def reverse_readline(f, buf_size=8192):
 
 
 def format_time_sequence_digest(
-  record_list, max_line_width, now_dt, rx_str, from_dt, to_dt, num_log_files,
-  num_used_log_files, num_log_types, max_records_per_type
+    record_list, max_line_width, now_dt, rx_str, from_dt, to_dt, num_log_files,
+    num_used_log_files, num_log_types, max_records_per_type
 ):
   latest_first_record_list = sort_record_list_latest_first(record_list)
   record_str_list = []
@@ -518,21 +518,17 @@ def format_time_sequence_digest(
     )
   s = StringIO.StringIO()
   s.write('TIME SEQUENCE DIGEST\n\n')
-  s.write(
-    'GENERATED="{}"  REGEX="{}"  GENERATE_WALLTIME="{}"  FROM="{}"  TO="{}"\n'
-    .format(
-      format_time(now_dt), rx_str, format_walltime(now_dt),
-      format_time(from_dt), format_time(to_dt)
-    )
-  )
-  s.write(
-    'TOTAL_LOG_FILES={}  USED_LOG_FILES={}  USED_RECORDS={}  '
-    'MAX_RECORDS_PER_TYPE={}  LOG_TYPES={}\n\n\n'.format(
-      num_log_files, num_used_log_files, len(record_list), max_records_per_type,
-      num_log_types
-    )
-  )
-  s.write(('~' * 4 + '\n\n').join(record_str_list))
+  s.write('generated: {}\n'.format(format_time(now_dt)))
+  s.write('regex: {}\n'.format(rx_str))
+  s.write('generate walltime: {}\n'.format(format_walltime(now_dt)))
+  s.write('from: {}\n'.format(format_time(from_dt)))
+  s.write('to: {}\n'.format(format_time(to_dt)))
+  s.write('total log files: {}\n'.format(num_log_files))
+  s.write('used log files: {}\n'.format(num_used_log_files))
+  s.write('max records per type: {}\n'.format(max_records_per_type))
+  s.write('used records: {}\n'.format(len(record_list)))
+  s.write('log types: {}\n\n\n'.format(num_log_types))
+  s.write(('~\n\n' * 4 + '').join(record_str_list))
   return s.getvalue()
 
 
@@ -543,7 +539,7 @@ def format_event_sequence_record(record_dict, max_line_width, now_dt):
   """
   s = StringIO.StringIO()
   s.write(
-    'AGE="{}"  TIME="{}"  LOG="{}"  LEVEL="{}"\n\n{}\n'.format(
+    'age="{}"  time="{}"  log="{}"  level="{}"\n\n{}\n'.format(
       format_age(record_dict, now_dt),
       format_time(record_dict['time_dt']),
       record_dict['type_str'].upper(),
@@ -579,8 +575,8 @@ def group_similar_records(record_list, similar_ratio_threshold):
     record_dict['similar_int'] = 0
     for later_record_dict in record_list[i + 1:]:
       if are_similar(
-        later_record_dict['msg_str'], record_dict['msg_str'],
-        similar_ratio_threshold
+          later_record_dict['msg_str'], record_dict['msg_str'],
+          similar_ratio_threshold
       ):
         record_dict['similar_int'] += 1
         later_record_dict['counted_as_similar'] = True
@@ -588,14 +584,14 @@ def group_similar_records(record_list, similar_ratio_threshold):
 
 
 def are_similar(msg_a, msg_b, similar_ratio_threshold):
-  return difflib.SequenceMatcher(None, msg_a, msg_b
-                                 ).ratio() > similar_ratio_threshold
+  return difflib.SequenceMatcher(None, msg_a, msg_b).ratio() > similar_ratio_threshold
   # return not (difflib.SequenceMatcher(None, msg_a, msg_b
   #                                ).quick_ratio() < similar_ratio_threshold)
 
 
 def format_digest_section(
-  type_str, level_str, record_list, now_dt, max_records_per_type, max_line_width
+    type_str, level_str, record_list, now_dt, max_records_per_type,
+    max_line_width
 ):
   s = StringIO.StringIO()
   s.write('#' * max_line_width + '\n')
