@@ -5,7 +5,7 @@
 import argparse
 import codecs
 import contextlib
-import cPickle as pickle
+#import cPickle as pickle
 import cStringIO as StringIO
 import datetime
 import difflib
@@ -13,7 +13,7 @@ import gzip
 import logging
 import multiprocessing
 import os
-import pprint
+#import pprint
 import re
 import sys
 import textwrap
@@ -30,7 +30,7 @@ LOG_DIR_PATH_LIST = [
 
 # Only max age is typically used. Leaving min age at None causes all records
 # more recent than max age to be processed.
-MAX_RECORD_AGE_HOURS = 1 * 31 * 24 # None = don't filter old log records
+MAX_RECORD_AGE_HOURS = 1 * 31 * 24 # None = search as far back as there are logs
 MIN_RECORD_AGE_HOURS = None # None = until now
 MAX_RECORDS_PER_TYPE = 25
 MAX_LINES_PER_RECORD = 200
@@ -83,8 +83,9 @@ def parse_cmd_line_args():
 
 
 def generate_time_sequence_digest(
-  log_dir_path_list, rx_str, now_dt, max_record_age_hours, min_record_age_hours,
-  max_lines_per_record, max_records_per_type, max_line_width
+    log_dir_path_list, rx_str, now_dt, max_record_age_hours,
+    min_record_age_hours, max_lines_per_record, max_records_per_type,
+    max_line_width
 ):
   from_dt, to_dt = rel_to_abs_timespan(
     now_dt, max_record_age_hours, min_record_age_hours
@@ -105,7 +106,8 @@ def generate_time_sequence_digest(
     )
   )
   report_str = format_time_sequence_digest(
-    record_list, max_line_width, now_dt, rx_str, from_dt, to_dt, len(log_list),
+    record_list, max_line_width, now_dt, rx_str, from_dt, to_dt,
+    len(log_list),
     len(eligible_log_list), len(log_group_dict), max_records_per_type
   )
   with codecs.open(digest_file_path, 'w', encoding='utf8') as f:
@@ -117,25 +119,23 @@ def generate_time_sequence_digest(
   )
 
 
-def log_setup(is_debug):
+def log_setup(is_debug=False):
   formatter = logging.Formatter(
-    '%(asctime)s %(levelname)-8s %(message)s', '%y/%m/%d %H:%M:%S'
+    u'%(asctime)s %(name)s %(module)s %(process)4d %(levelname)-8s %(message)s',
+    u'%Y-%m-%d %H:%M:%S',
   )
   console_logger = logging.StreamHandler(sys.stderr)
   console_logger.setFormatter(formatter)
   logging.getLogger('').addHandler(console_logger)
-  if is_debug:
-    logging.getLogger('').setLevel(logging.DEBUG)
-  else:
-    logging.getLogger('').setLevel(logging.INFO)
+  logging.getLogger('').setLevel(logging.DEBUG if is_debug else logging.INFO)
 
 
 def rel_to_abs_timespan(now_dt, max_record_age_hours, min_record_age_hours):
   return (
-    now_dt - datetime.timedelta(hours=max_record_age_hours) \
-      if MAX_RECORD_AGE_HOURS else None,
-    now_dt - datetime.timedelta(hours=min_record_age_hours) \
-      if MIN_RECORD_AGE_HOURS else None
+    now_dt - datetime.timedelta(hours=max_record_age_hours)
+    if MAX_RECORD_AGE_HOURS else None,
+    now_dt - datetime.timedelta(hours=min_record_age_hours)
+    if MIN_RECORD_AGE_HOURS else None
   )
 
 
@@ -144,6 +144,7 @@ def format_walltime(start_dt):
     datetime.datetime.now() - start_dt,
     '{hours:02d}:{minutes:02d}:{seconds:02d}'
   )
+
 
 #
 # Log files
