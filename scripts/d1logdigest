@@ -528,7 +528,7 @@ def format_time_sequence_digest(
   s.write('max records per type: {}\n'.format(max_records_per_type))
   s.write('used records: {}\n'.format(len(record_list)))
   s.write('log types: {}\n\n\n'.format(num_log_types))
-  s.write(('~\n\n' * 4 + '').join(record_str_list))
+  s.write(('~~~~\n\n').join(record_str_list))
   return s.getvalue()
 
 
