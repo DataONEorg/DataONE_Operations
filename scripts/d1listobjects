@@ -116,22 +116,6 @@ def main():
       kwparams['formatId'] = args.fmtfilter
 
     res = doListObjects(client, **kwparams)
-    '''
-    if args.node_id is not None:
-      res = doListObjects(client,
-                          count = args.page_size,
-                          start = start_index,
-                          fromDate=date_start,
-                          toDate=date_end,
-                          nodeId=args.node_id,
-                          identifier=args.idfilter)
-    else:
-      res = doListObjects(client,
-                          count=args.page_size,
-                          start=start_index,
-                          fromDate=date_start,
-                          toDate=date_end)
-    '''
     if total_records < 0:
       logger.info("Total matching records = %d", res.content.total)
     if total_records < 0:
