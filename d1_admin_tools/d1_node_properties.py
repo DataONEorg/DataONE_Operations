@@ -51,7 +51,9 @@ from d1_admin_tools.operations import expandNodeID
 ALLOWED_PROPERTIES = [
   'CN_node_name',
   'CN_operational_status',
-  'CN_date_joined',
+  'CN_date_operational',
+  'CN_date_upcoming',
+  'CN_date_deprecated',
   'CN_logo_url',
   'CN_info_url',
 ]
@@ -87,6 +89,9 @@ def _readEntryValue(entry, field):
 
 def createNodeProperty(con, node_id, key, value):
   '''Add a property specified by key, value
+  
+  Note: Need to be careful that the node_id case is exactly right, otherwise the
+  java deserializer doesn't seem to find the property that was added.
   '''
   if key not in ALLOWED_PROPERTIES:
     raise KeyError("key must be one of {0}".format( \
@@ -181,10 +186,55 @@ def createOrUpdateNodeProperty(con, node_id, key, value):
   return updateNodeProperty(con, node_id, key, value, old_value=res[0][3])
 
 
+def listNodes(con):
+  '''Retrieve a list of all node_ids by examining LDAP
+  '''
+  result = []
+  dn = "dc=dataone,dc=org"
+  q = "(&(objectClass=d1Node)(d1NodeType=mn))"
+  attrs = ['d1NodeId']
+  res = con.search_s(dn, ldap.SCOPE_SUBTREE, q, attrs)
+  for entry in res:
+    result.append(_readEntryValue(entry, 'd1NodeId'))
+  return result
+
+
+def listAllNodeProperties(con):
+  '''Retrieve a list of custom properties for all nodes.
+  '''
+  nodes = listNodes(con)
+  result = {}
+  for node in nodes:
+    props = readNodeProperty(con, node, "*")
+    entry = {}
+    for k in ALLOWED_PROPERTIES:
+      entry[k] = None
+    for prop in props:
+      if prop[2].startswith("CN_"):
+        entry[prop[2]] = prop[3]
+    result[node] = entry
+  return result
+
+
+def setNodesProperties(con, nodes_properties):
+  '''Given a dict of:
+    {node_id: {property: value,
+               property: value}
+      }
+  Call createOrUpdateNodeProperty for each entry.
+  '''
+  for node_id in nodes_properties.keys():
+    properties = nodes_properties[node_id]
+    for key in properties.keys():
+      logging.info("%s set prop %s to %s", node_id, key, str(properties[key]))
+      createOrUpdateNodeProperty(con, node_id, key, properties[key])
+
+
 if __name__ == "__main__":
   import sys
   import getpass
-  logging.basicConfig(level=logging.DEBUG)
+  import yaml
+  logging.basicConfig(level=logging.INFO)
   print('''
 Make sure you have an LDAP connection on port 3890 by doing something like:
 
@@ -192,6 +242,8 @@ Make sure you have an LDAP connection on port 3890 by doing something like:
   ''')
   passwd = getpass.getpass("What's the LDAP password: ")
   con = getLDAPConnection(password=passwd)
+  print( yaml.dump(listAllNodeProperties(con), default_flow_style=False, explicit_start=True) )
+  sys.exit(0)
   
   node_id = raw_input("Node ID: ")
   res = readNodeProperty(con, node_id, "*")
