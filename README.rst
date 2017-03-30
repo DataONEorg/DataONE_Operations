@@ -75,3 +75,9 @@ Output in text, json, xml is generally supported.
 * ``d1indexqstat`` Retrieves counts from the index processor task queue.
 * ``d1mnadmin`` Reset synchronization time, update MN node document
 
+
+Code style
+----------
+
+See https://github.com/DataONEorg/d1_python#code-style
+
