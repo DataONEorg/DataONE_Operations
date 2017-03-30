@@ -199,6 +199,10 @@ def resetNodeLogAggregationDate(node_id, ldap_pass=None, harvest_timestamp="1900
 
 
 #========================
+#== CRUD on MN custom properties
+
+
+#========================
 #== DataONE Operations ==
 
 

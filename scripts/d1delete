@@ -24,12 +24,13 @@ cn-index-generator-daemon.log.6:[ INFO] 2016-09-29 23:02:19,286 (IndexTaskGenera
 
 '''
 import sys
-import os
+import codecs
 import logging
 import argparse
 import pprint
 import d1_admin_tools
 from d1_admin_tools import operations
+import d1_common
 from d1_client import cnclient_2_0
 
 
@@ -40,14 +41,11 @@ def presentBefore(environment, pid, res):
 
 
 def doDelete(client, pid):
-  affirmation = raw_input("Please confirm DELETE (yes or no):")
-  if affirmation != 'yes':
-    raise ValueError("Terminating DELETE request.")
   results = {}
   logging.warn("DELETE: %s", pid)
-  res = client.deleteObjectResponse(pid)
-  results = {'result': client._read_and_capture(res),
-             'status': client.status_code}
+  response = client.deleteObjectResponse(pid)
+  results = {'result': client._read_dataone_type_response(response, 'Identifier'),
+             'status': response.status_code}
   return results
 
 
@@ -56,6 +54,8 @@ def main():
   parser.add_argument('-E', '--certificate',
                       default=None,
                       help='Certificate to authenticate request.')
+  parser.add_argument('-b','--batch', action='store_true', default=False,
+                      help='Batch mode - provide file name with one pid per line instead of PID argument')
   parser.add_argument('pid',
                       help="Identifier to delete")
   args, config = d1_admin_tools.defaultScriptMain(parser)
@@ -65,33 +65,52 @@ def main():
   #  logger.error("Certificate not found: %s", args.certificate)
   #  return 1
 
-  results = {}
-  results['pid'] = args.pid
-  results['environment'] = args.environment
-  base_url = config.envPrimaryBaseURL(args.environment)
-  client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
-                                                   api_major=2,
-                                                   capture_response_body=True,
-                                                   cert_path=args.certificate)
-  logging.info("Resolving identifier before delete: %s", args.pid)
-  results['before'] = operations.resolve(client, args.pid)
-  presentBefore(args.environment, args.pid, results)
+  env_nodes = config.envNodes(args.environment)
+  client = env_nodes.getClient(cert_pem_path=args.certificate)
+  pids = [args.pid ]
+  if args.batch:
+    pids = []
+    with codecs.open(args.pid, 'r', encoding='UTF-8') as pid_file:
+      for pid in pid_file:
+        pid = pid.strip()
+        if len(pid) > 0:
+          pids.append(pid)
+    print("")
+    print("About to DELETE content for {0} identifiers from the {1} environment.".format(len(pids), args.environment))
+    affirmation = raw_input("Please confirm DELETE (yes or no):")
+    if affirmation != 'yes':
+      raise ValueError("Terminating DELETE request.")
 
-  print("")
-  print("About to DELETE content for identifier {0} from the {1} environment.".format(args.pid, args.environment))
-  results['delete'] = doDelete(client, args.pid)
-  if results['delete']['status'] == 200:
-    logger.info("SUCCESS: Identifier %s deleted from the %s environment.", args.pid, args.environment)
+  for pid in pids:
+    results = {}
+    results['pid'] = pid
+    results['environment'] = args.environment
+    logging.info("Resolving identifier before delete: %s", pid)
+    results['before'] = operations.resolve(client, pid)
+    presentBefore(args.environment, pid, results)
+    if results['before']['status']['msg'] == 'OK':
+      if not args.batch:
+        print("")
+        print("About to DELETE content for identifier {0} from the {1} environment.".format(pid, args.environment))
+        affirmation = raw_input("Please confirm DELETE (yes or no):")
+        if affirmation != 'yes':
+          raise ValueError("Terminating DELETE request.")
 
-  logging.info("Resolving identifier after delete: %s", args.pid)
-  results['after'] = operations.resolve(client, args.pid)
-  print("")
-  print("Return from delete operation:")
-  pprint.pprint(results['delete'], indent=2)
+      results['delete'] = doDelete(client, pid)
+      if results['delete']['status'] == 200:
+        logger.info("SUCCESS: Identifier %s deleted from the %s environment.", pid, args.environment)
 
-  print("")
-  print("Resolve results after delete:")
-  pprint.pprint(results['after'], indent=2)
+      logging.info("Resolving identifier after delete: %s", pid)
+      results['after'] = operations.resolve(client, pid)
+      print("")
+      print("Return from delete operation:")
+      pprint.pprint(results['delete'], indent=2)
+
+      print("")
+      print("Resolve results after delete:")
+      pprint.pprint(results['after'], indent=2)
+    else:
+      logging.info("Ignoring request to delete %s because it could not be resolved.", pid)
   return 0
 
 
