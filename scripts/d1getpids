@@ -14,14 +14,36 @@ so access control for ssh is via a key pair, and for postgres via a .pgpass file
 or similar mechanism.
 
 By default, content is placed in a subfolder named getpids_{env}_{date} of the
-current working folder, where env is the name of the environment being examined and
-date is the current date (UTC).
+current working folder, where env is the name of the environment being examined
+and date is the current date (UTC).
+
+Output
+
+Several files are created in the output subfolder:
+
+analysis.json
+
+results.json
+
+data_files_{HOST}.txt
+
+Contains a list of all the autogen ids for all documents in the metacat data folder.
+
+identifiers_{HOST}.txt
+
+Contains a space delimited list of:
+
+  identifier, autogen_id, revison_id, node_id
+
+for identifiers in the metacat postgres database that match the provided constraints (a combination of start time, end time, node id).
+
 
 Requires
 
 * d1_admin_tools https://github.com/DataONEorg/DataONE_Operations
 * dateparser https://pypi.python.org/pypi/dateparser
 * fabric http://www.fabfile.org/
+
 
 '''
 
@@ -36,13 +58,14 @@ import os
 import csv
 import codecs
 import json
+import sqlite3
 from fabric.api import task, execute, run, get
 
 PSQL_READONLY_USER = "dataone_readonly"
 PSQL_DATE_FORMAT="%Y-%m-%dT%H:%M:%S.%f%z"
 RESULTS_FILE = 'results.json'
 ANALYSIS_FILE = 'analysis.json'
-
+OUTCOME_FILE = 'analysis_results.json'
 
 #==================
 #++ Fabric Tasks ++
@@ -59,6 +82,7 @@ def runSQLQuery(SQL, dest_file, tmp_file=None, user=PSQL_READONLY_USER, database
   logger = logging.getLogger('main')
   if tmp_file is None:
     tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
+  SQL = "COPY (" + SQL + ") TO STDOUT WITH (FORMAT CSV, HEADER FALSE, FORCE_QUOTE *);"
   cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + database
   cmd += " -P pager=off --single-transaction"
   cmd += " --no-align -t --field-separator '" + delimiter + "' --quiet"
@@ -87,6 +111,25 @@ def listDataDocuments(dest_file):
 
 #==================
 
+def getLocalDatabase(dest_folder, db_file="cndata.sqlite"):
+  dbc = sqlite3.connect( os.path.join(dest_folder, db_file ))
+  return dbc
+
+
+def createLocalDatabase(dest_folder, db_file="cndata.sqlite"):
+  '''Initialize a local sqlite3 database to hold data for analysis
+  '''
+  dbc = getLocalDatabase(dest_folder, db_file)
+  cur = dbc.cursor()
+  cur.execute("""CREATE TABLE identifier (host TEXT, pid TEXT, docid TEXT, 
+    rev INTEGER, rev2 TEXT, nodeid TEXT, formatid TEXT);""")
+  cur.execute("CREATE INDEX idx_identifier ON identifier (pid, host);")
+  cur.execute("""CREATE TABLE files (host TEXT, filename TEXT);""")
+  cur.execute("CREATE INDEX idx_files ON files (filename, host);")
+  dbc.commit()
+  dbc.close()
+
+
 def doGetIdentifiersPSQL(results, hosts, dest_folder, node_id=None, date_start=None, date_end=None):
   '''
   Retrieve a space delimited list of:
@@ -108,7 +151,7 @@ def doGetIdentifiersPSQL(results, hosts, dest_folder, node_id=None, date_start=N
   :return:
   '''
   logger = logging.getLogger('main')
-  sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev, systemmetadata.series_id
+  sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev, systemmetadata.series_id, systemmetadata.origin_member_node, systemmetadata.object_format
 FROM identifier INNER JOIN systemmetadata ON identifier .guid = systemmetadata.guid
 WHERE """
   conditions = []
@@ -131,10 +174,20 @@ WHERE """
   results['request']['SQL'] = SQL
   logger.info(SQL)
   results['results']['identifier_documents'] = {}
+  dbc = getLocalDatabase(dest_folder)
+  cur = dbc.cursor()
   for host in hosts:
     dest_file = os.path.join(dest_folder, "identifiers_{0}.txt".format(host))
     results['results']['identifier_documents'][host] = dest_file
     execute(runSQLQuery, SQL, dest_file, host=host)
+    logger.info("Loading identifiers to local database for %s", host)
+    with open(results['results']['identifier_documents'][host]) as id_file:
+      idreader = csv.reader(id_file)
+      for row in idreader:
+        urow =[host, ] + map( toUnicode, row)
+        cur.execute(u"INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);",
+            urow)    
+    dbc.commit()
 
 
 def doGetDataDocumentList(results, hosts, dest_folder):
@@ -148,11 +201,19 @@ def doGetDataDocumentList(results, hosts, dest_folder):
   :param dest_folder:
   :return:
   '''
+  logger = logging.getLogger('main')
   results['results']['data_documents'] = {}
+  dbc = getLocalDatabase(dest_folder)
+  cur = dbc.cursor()
   for host in hosts:
     dest_file = os.path.join(dest_folder, "data_files_{0}.txt".format(host))
     results['results']['data_documents'][host] = dest_file
     execute(listDataDocuments, dest_file, host=host)
+    logger.info("Adding document list for %s to database...", host)
+    with open(dest_file, 'r') as infile:
+      for row in infile.readlines(): 
+        cur.execute(u"INSERT INTO files VALUES (?, ?)", [host, toUnicode(row)])
+    dbc.commit()
 
 
 def listAnotB(A, B):
@@ -166,6 +227,10 @@ def listAnotB(A, B):
   return list(A.difference(B))
 
 
+def toUnicode(a):
+  return a.decode('utf-8')
+
+
 def compareIdentifierList(results):
   '''
   Compares the identifier list for each host with that for each other host.
@@ -173,26 +238,43 @@ def compareIdentifierList(results):
   :param results:
   :return:
   '''
+  dbc = getLocalDatabase(results['dest_folder'])
+  cur = dbc.cursor()
   logger = logging.getLogger('main')
   logger.info("Comparing identifiers...")
   pids = {}
   hosts = results['results']['identifier_documents'].keys()
   for host in hosts:
+    logger.info("Loading %s ...", host)
     pids[host] = None
     tmplist = []
-    with open(results['results']['identifier_documents'][host], 'rb') as id_file:
-      idreader = csv.reader(id_file, delimiter=' ')
+    with open(results['results']['identifier_documents'][host]) as id_file:
+      idreader = csv.reader(id_file)
       for row in idreader:
         tmplist.append(row[0])
     pids[host] = frozenset(tmplist)
   results['results']['identifier_compare'] = []
+  results['results']['identifier_compare_nodes'] = []
   for host_A in hosts:
+    logger.info("Comparing %s", host_A)
     for host_B in hosts:
       logger.info("Comparing {0} - {1}".format(host_A, host_B))
       delta = {"A":host_A,
                "B":host_B,
                "delta":listAnotB(pids[host_A], pids[host_B])}
       results['results']['identifier_compare'].append(delta)
+      delta_nodes = {"A": host_A,
+                     "B": host_B,
+                     "nodes": {}}
+      for pid in delta['delta']:
+        SQL = u"SELECT nodeid FROM identifier WHERE pid=? AND host=?"
+        cur.execute(SQL, [toUnicode(pid), host_A])
+        info = cur.fetchone()
+        try:
+          delta_nodes['nodes'][info[0]] += 1
+        except:
+          delta_nodes['nodes'][info[0]] = 1
+      results['results']['identifier_compare_nodes'].append(delta_nodes)
   return pids
 
 
@@ -212,7 +294,7 @@ def compareDocIdList(results):
     docids[host] = None
     tmplist = []
     with open(results['results']['identifier_documents'][host], 'rb') as id_file:
-      idreader = csv.reader(id_file, delimiter=' ')
+      idreader = csv.reader(id_file)
       for row in idreader:
         tmplist.append("{0}.{1}".format(row[1], row[2]))
     docids[host] = frozenset(tmplist)
@@ -242,8 +324,11 @@ def analyzeThis(results_folder, format="text"):
   :return:
   '''
   results = {}
-  with codecs.open(os.path.join(results_folder, RESULTS_FILE), mode='rb', encoding='utf-8') as rfile:
+  with codecs.open( os.path.join(results_folder, RESULTS_FILE), 
+                    mode='rb', 
+                    encoding='utf-8' ) as rfile:
     results = json.load(rfile, encoding='utf-8')
+  results['dest_folder'] = results_folder
   hosts = results['results']['data_documents'].keys()
   if format == "text":
     print("Hosts examined:")
@@ -251,22 +336,32 @@ def analyzeThis(results_folder, format="text"):
       print("  {0}".format(host))
     print("")
     print("PID comparison:")
+    
   identifier_check = compareIdentifierList(results)
   filename_check = compareDocIdList(results)
-  with codecs.open(os.path.join(results_folder, ANALYSIS_FILE), mode='wb', encoding='utf-8') as rfile:
-    rfile.write(json.dumps(results, encoding='utf-8'))
+  
+  with codecs.open( os.path.join(results_folder, ANALYSIS_FILE), 
+                    mode='wb', 
+                    encoding='utf-8' ) as rfile:
+    rfile.write( json.dumps(results, 
+                            encoding='utf-8', 
+                            sort_keys=True, indent=2 ))
   if format == "text":
     for delta in results['results']['identifier_compare']:
-      print("Found {0}/{1} indentifiers in {2} not in {3}".format(len(delta['delta']),
-                                                                  len(identifier_check[delta['A']]),
-                                                                  delta['A'],
-                                                                  delta['B']))
+      print("Found {0}/{1} identifiers in {2} not in {3}".format( \
+        len(delta['delta']),
+        len(identifier_check[delta['A']]),
+        delta['A'],
+        delta['B']) 
+      )
     print("")
     print("Document comparison")
     for delta in results['results']['docid_compare']:
-      print("Found {0}/{1} filenames listed by {2} but not present on filesystem".format(len(delta['delta']),
-                                                                                         len(filename_check[delta['A']]),
-                                                                                         delta['A']))
+      print("{0}/{1} filenames on {2} but files not present".format( \
+        len(delta['delta']),
+        len(filename_check[delta['A']]),
+        delta['A'])
+      )
   elif format == "json":
     print json.dumps(results, encoding="utf-8", indent=2)
 
@@ -328,6 +423,7 @@ def main():
 
   if not os.path.exists(dest_folder):
     os.makedirs(dest_folder)
+    createLocalDatabase(dest_folder)
   date_start = None
   date_end = None
   if args.date_start is not None:
