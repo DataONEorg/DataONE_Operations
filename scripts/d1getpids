@@ -5,7 +5,7 @@ Evaluate presence of content synchronized to Coordinating Nodes.
 
 Retrieve PIDs, SIDs, docid, revisions, and file names directly from CN
 databases and file system, then perform some analysis of the retrieved
-content to verify availability.
+content to verify consistency across CNs.
 
 This script bypasses the DataONE APIs to retrieve identifiers directly from the
 postgres database operating on Coordinating Nodes. Shell access to the CNs and
@@ -17,13 +17,40 @@ By default, content is placed in a subfolder named getpids_{env}_{date} of the
 current working folder, where env is the name of the environment being examined
 and date is the current date (UTC).
 
+Analyses
+
+1. Files that are present on one node but not on another
+
+2. PIDs that are on one node but not on another
+
+
 Output
 
 Several files are created in the output subfolder:
 
-analysis.json
+cndata.sqlite
 
-results.json
+An sqlite3 database that contains tables::
+
+  CREATE TABLE metadata (
+    k TEXT,
+    v TEXT
+  );
+
+  CREATE TABLE identifier (
+      host TEXT, 
+      pid TEXT, 
+      autogen TEXT,
+      rev INTEGER, 
+      docid TEXT, 
+      nodeid TEXT, 
+      formatid TEXT
+  );
+  CREATE TABLE files (
+      host TEXT, 
+      filename TEXT
+  );
+
 
 data_files_{HOST}.txt
 
@@ -36,6 +63,11 @@ Contains a space delimited list of:
   identifier, autogen_id, revison_id, node_id
 
 for identifiers in the metacat postgres database that match the provided constraints (a combination of start time, end time, node id).
+
+analysis.json
+
+results.json
+
 
 
 Requires
@@ -60,12 +92,16 @@ import codecs
 import json
 import sqlite3
 from fabric.api import task, execute, run, get
+from jinja2 import Environment, FileSystemLoader, select_autoescape
+
 
 PSQL_READONLY_USER = "dataone_readonly"
 PSQL_DATE_FORMAT="%Y-%m-%dT%H:%M:%S.%f%z"
 RESULTS_FILE = 'results.json'
 ANALYSIS_FILE = 'analysis.json'
-OUTCOME_FILE = 'analysis_results.json'
+
+DOCID_ANALYSIS = 'docid_analysis.json'
+PID_ANALYSIS = 'pid_analysis.json'
 
 #==================
 #++ Fabric Tasks ++
@@ -111,6 +147,270 @@ def listDataDocuments(dest_file):
 
 #==================
 
+class CNodeComparison(object):
+  
+  def __init__(self, dest_folder):
+    self.dest_folder = dest_folder
+    self.db_file = os.path.join(dest_folder, "cndata.sqlite")
+    self.dbc = None
+    self.createLocalDatabase()
+    
+    
+  def getDatabaseConnection(self, force=False):
+    if not self.dbc is None and not force:
+      return self.dbc
+    self.dbc = sqlite3.connect( self.db_file )
+
+
+  def createLocalDatabase(self):
+    dbc = self.getDatabaseConnection()
+    cur = dbc.cursor()
+    cur.execute("CREATE TABLE IF NOT EXISTS metadata (k TEXT, v TEXT)")
+    cur.execute("""CREATE TABLE IF NOT EXISTS identifier (host TEXT, pid TEXT,
+      autogen TEXT, rev INTEGER, docid TEXT, nodeid TEXT, formatid TEXT);""")
+    cur.execute("""CREATE INDEX IF NOT EXISTS idx_identifier ON identifier 
+      (pid, host, docid);""")
+    cur.execute("CREATE TABLE IF NOT EXISTS files (host TEXT, filename TEXT);")
+    cur.execute("""CREATE INDEX IF NOT EXISTS idx_files ON files 
+      (filename, host);""")
+    dbc.commit()
+    dbc.close()
+
+
+  def getMetadata(self, k):
+    dbc = self.getDatabaseConnection()
+    cur = dbc.cursor()
+    cur.execute("SELECT v FROM metadata WHERE k=?", [k])
+    return json.loads(cur.fetchone()[0])
+
+
+  def deleteMetadata(self, k):
+    if self.getMetadata(k) is None:
+      return
+    SQL = "DELETE FROM metadata WHERE k=?"
+    dbc = self.getDatabaseConnection()
+    cur = dbc.cursor()
+    cur.execute(SQL, [k] )
+    dbc.commit()
+
+
+  def setMetadata(self, k, v):
+    dbc = self.getDatabaseConnection()
+    cur = dbc.cursor()
+    v_encoded = json.dumps(v, encoding='utf-8')
+    if self.getMetadata(k) is None:
+      SQL = "INSERT INTO metadata (?, ?)"
+      cur.execute(SQL, [k, v])
+    else:
+      SQL = "UPDATE metadata SET v=?"
+      cur.execute(SQL, v)
+    dbc.commit()
+
+
+  def writeJsonFile(self, fname, data):
+    with codecs.open( os.path.join(self.dest_folder, fname), 
+                      mode='wb', 
+                      encoding='utf-8' ) as rfile:
+      rfile.write( json.dumps(data, 
+                              encoding='utf-8', 
+                              sort_keys=True, indent=2 ))
+    
+  
+  def readJsonFile(self, fname):
+    with codecs.open( os.path.join(self.dest_folder, fname), 
+                      mode='rb', 
+                      encoding='utf-8' ) as rfile:
+      return json.loads( rfile )
+
+
+  def getDocids(self, hosts):
+    '''
+    Retrieve a list of files from /var/metacat/data and
+      /var/metacat/documents from each of hosts.
+
+    Output is written to files in dest_folder named data_files_{host}. 
+    Each output file contains one entry per line.
+
+    :param results:
+    :param hosts:
+    :param dest_folder:
+    :return:
+    '''
+    logger = logging.getLogger('main')
+    results['results']['data_documents'] = {}
+    dbc = self.getDatabaseConnection()
+    cur = dbc.cursor()
+    for host in hosts:
+      dest_file = "data_files_{0}.txt".format(host))
+      self.setMetadata("docids.{0}".format(host), dest_file)
+      execute(listDataDocuments, 
+              os.path.join(self.dest_folder, dest_file), 
+              host=host)
+      logger.info("Adding document list for %s to database...", host)
+      with open(dest_file, 'r') as infile:
+        for row in infile.readlines(): 
+          cur.execute(u"INSERT INTO files VALUES (?, ?)", 
+                      [ host, toUnicode(row.strip()) ] )
+      dbc.commit()
+
+
+  def getIdentifiers(self, hosts, 
+                     node_id=None, 
+                     date_start=None, 
+                     date_end=None):
+    '''
+    Retrieve a space delimited list of:
+
+      PID docid rev series_id
+
+    from the postgres database on each host of hosts. Output is written to 
+    a file in dest_folder named identifier_{host}.txt. The file name is
+    recorded in the results disctionary.
+
+    The identifiers returned is limited by the combination of 
+    node_id, date_start, and date_end which are ANDed together. At least one 
+    of these parameters must be specified.
+
+    :param results: Dictionary of {'request': ,'result': } to contain 
+                    metadata about this operation.
+                    Modified by this method.
+    :param hosts: List of host names
+    :param node_id: Optional node identifier to match
+    :param date_start: Optional starting date for match
+    :param date_end: Optional ending date for match.
+    :return:
+    '''
+    logger = logging.getLogger('main')
+    sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev,
+      systemmetadata.series_id, systemmetadata.origin_member_node,
+      systemmetadata.object_format FROM identifier INNER JOIN systemmetadata ON
+      identifier .guid = systemmetadata.guid WHERE """
+    conditions = []
+    params = []
+
+    if not node_id is None:
+      if node_id.find("'") >= 0:
+        raise ValueError("Invalid character in node_id!")
+      conditions.append("origin_member_node = '%s'" % node_id)
+      params.append(node_id)
+
+    if not date_start is None:
+      conditions.append("date_modified >= '%s'::timestamp" % 
+         date_start.strftime(PSQL_DATE_FORMAT))
+      params.append(date_start)
+
+    if not date_end is None:
+      conditions.append("date_modified < '%s'::timestamp" %
+         date_end.strftime(PSQL_DATE_FORMAT))
+      params.append(date_end)
+      
+    if len(conditions) < 1:
+      raise ValueError(
+          "At least one of node_id, date_start, or date_end is required.")
+
+    where_clause = " AND ".join(conditions)
+    SQL = sql_template + where_clause;
+    results['request']['SQL'] = SQL
+    logger.info(SQL)
+    dbc = getLocalDatabase(dest_folder)
+    cur = dbc.cursor()
+    setMetadata('request.SQL', SQL)
+  
+    for host in hosts:
+      dest_file = "identifiers_{0}.txt".format(host)
+      self.setMetadata("identifiers.{0}".format(host), dest_file)
+      results['results']['identifier_documents'][host] = dest_file
+      execute(runSQLQuery, 
+              SQL, 
+              os.path.join(self.dest_folder, dest_file),
+              host=host)
+      logger.info("Loading identifiers to local database for %s", host)
+      with open( os.path.join(self.dest_folder, dest_file) ) as id_file:
+        idreader = csv.reader(id_file)
+        for row in idreader:
+          urow =[host, ] + map( toUnicode, row)
+          urow[4] = urow[2]+u'.'+unicode(urow[3])
+          cur.execute(u"INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);",
+              urow)    
+      dbc.commit()
+
+
+  def loadDataFromHosts(self, 
+                        hosts,
+                        node_id=None, 
+                        date_start=None, 
+                        date_end=None):
+    self.setMetadata('hosts', hosts)
+    self.getDocids(hosts)
+    self.getIdentifiers(hosts, 
+                        node_id=node_id, 
+                        date_start=date_start, 
+                        date_end=date_end)
+                        
+                        
+
+  def filesHereNotThere(self, host_a, host_b):
+    dbc = self.getDatabaseConnection()
+    cur = dbc.cursor()
+    logger = logging.getLogger('main')
+    logger.info("Comparing file list for %s vs %s", host_a, host_b)
+    SQL = """SELECT COUNT(*) FROM files WHERE host=? AND filename NOT IN 
+    ( SELECT filename FROM files WHERE host=?);"""
+    cur.execute(SQL, (host_a, host_b))
+    delta = cur.fetchone()[0]
+    res = {'delta': delta,
+           'docids': []}
+    if delta > 0:
+      SQL = """SELECT filename FROM files WHERE host=? AND filename NOT IN 
+      ( SELECT filename FROM files WHERE host=?);"""
+      cur.execute(SQL, (host_a, host_b))
+      docids = cur.fetchall()
+      for entry in docids:
+        res['docids'].append(entry[0])
+    return res
+
+
+  def docIdCounts(self):
+    hosts = self.getMetadata('hosts')
+    res = []
+    for host_a in hosts:
+      res_a = []
+      for host_b in hosts:
+        res_a.append(filesHereNotThere(host_a, host_b))
+      res.append(res_a)
+    return res
+  
+
+  def analyzeData(self):
+    docid_counts = self.docIdCounts()
+    self.setMetadata('docid_counts', DOCID_ANALYSIS)
+    self.writeJsonFile( DOCID_ANALYSIS, docid_counts )
+
+
+  def render(self, format='text'):
+    if format.lower() == 'text':
+      return self.renderDataText()
+
+
+  def renderText(self):
+    hosts = self.getMetadata('hosts')
+    docid_comp = self.readJsonFile(DOCID_ANALYSIS)
+    print "            " + " ".join(hosts)
+    i = 0
+    for host_a in hosts:
+      olin = host_a.split(".")[0]
+      j = 0
+      for host_b in hosts:
+        olin += "  {0}".format( docid_compare['comparisons'][i][j]['delta'] ) 
+        j += 1
+      print( olin )
+      i += 1
+    
+
+
+##==============================================================================
+
+
 def getLocalDatabase(dest_folder, db_file="cndata.sqlite"):
   dbc = sqlite3.connect( os.path.join(dest_folder, db_file ))
   return dbc
@@ -121,11 +421,13 @@ def createLocalDatabase(dest_folder, db_file="cndata.sqlite"):
   '''
   dbc = getLocalDatabase(dest_folder, db_file)
   cur = dbc.cursor()
-  cur.execute("""CREATE TABLE identifier (host TEXT, pid TEXT, docid TEXT, 
-    rev INTEGER, rev2 TEXT, nodeid TEXT, formatid TEXT);""")
-  cur.execute("CREATE INDEX idx_identifier ON identifier (pid, host);")
-  cur.execute("""CREATE TABLE files (host TEXT, filename TEXT);""")
-  cur.execute("CREATE INDEX idx_files ON files (filename, host);")
+  cur.execute("CREATE TABLE IF NOT EXISTS metadata (k TEXT, v TEXT)")
+  cur.execute("""CREATE TABLE IF NOT EXISTS identifier (host TEXT, pid TEXT,
+    autogen TEXT, rev INTEGER, docid TEXT, nodeid TEXT, formatid TEXT);""")
+  cur.execute("""CREATE INDEX IF NOT EXISTS idx_identifier ON identifier 
+    (pid, host, docid);""")
+  cur.execute("CREATE TABLE IF NOT EXISTS files (host TEXT, filename TEXT);")
+  cur.execute("CREATE INDEX IF NOT EXISTS idx_files ON files (filename, host);")
   dbc.commit()
   dbc.close()
 
@@ -176,6 +478,9 @@ WHERE """
   results['results']['identifier_documents'] = {}
   dbc = getLocalDatabase(dest_folder)
   cur = dbc.cursor()
+  
+  setMetadata('request.SQL', SQL)
+  
   for host in hosts:
     dest_file = os.path.join(dest_folder, "identifiers_{0}.txt".format(host))
     results['results']['identifier_documents'][host] = dest_file
@@ -185,6 +490,7 @@ WHERE """
       idreader = csv.reader(id_file)
       for row in idreader:
         urow =[host, ] + map( toUnicode, row)
+        urow[4] = urow[2]+u'.'+unicode(urow[3])
         cur.execute(u"INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);",
             urow)    
     dbc.commit()
@@ -212,7 +518,8 @@ def doGetDataDocumentList(results, hosts, dest_folder):
     logger.info("Adding document list for %s to database...", host)
     with open(dest_file, 'r') as infile:
       for row in infile.readlines(): 
-        cur.execute(u"INSERT INTO files VALUES (?, ?)", [host, toUnicode(row)])
+        cur.execute(u"INSERT INTO files VALUES (?, ?)", 
+                    [ host, toUnicode(row.strip()) ] )
     dbc.commit()
 
 
@@ -316,13 +623,51 @@ def compareDocIdList(results):
   return docids
 
 
-def analyzeThis(results_folder, format="text"):
+def filesHereNotThere(dbc, host_a, host_b):
+  cur = dbc.cursor()
+  logger = logging.getLogger('main')
+  logger.info("Comparing file list for %s vs %s", host_a, host_b)
+  SQL = """SELECT COUNT(*) FROM files WHERE host=? AND filename NOT IN 
+  ( SELECT filename FROM files WHERE host=?);"""
+  cur.execute(SQL, (host_a, host_b))
+  delta = cur.fetchone()[0]
+  res = {'delta': delta,
+         'docids': []}
+  if delta > 0:
+    SQL = """SELECT filename FROM files WHERE host=? AND filename NOT IN 
+    ( SELECT filename FROM files WHERE host=?);"""
+    cur.execute(SQL, (host_a, host_b))
+    docids = cur.fetchall()
+    for entry in docids:
+      res['docids'].append(entry[0])
+  return res
+  
+  
+def docIdCounts(dbc, hosts):
+  res = {'hosts': hosts,
+         'comparisons':[]}
+  for host_a in hosts:
+    res_a = []
+    for host_b in hosts:
+      res_a.append(filesHereNotThere(dbc, host_a, host_b))
+    res['comparisons'].append(res_a)
+  return res
+  
+
+
+def analyzeThis(results_folder, format="text", template="d1getpids.md"):
   '''
   Given the content retireved from the CNs, performs comparisons, stores and outputs the results
   :param results_folder:
   :param format:
   :return:
   '''
+  #TODO: figure path dynamically
+  env = Environment(
+    loader=FileSystemLoader('/Users/vieglais/Projects/DataONE_PhaseII/Operations/github/DataONE_Operations/scripts/templates'), 
+    autoescape=False
+    )
+  template = env.get_template("d1getpids.md")
   results = {}
   with codecs.open( os.path.join(results_folder, RESULTS_FILE), 
                     mode='rb', 
@@ -337,8 +682,13 @@ def analyzeThis(results_folder, format="text"):
     print("")
     print("PID comparison:")
     
+  
+    
   identifier_check = compareIdentifierList(results)
   filename_check = compareDocIdList(results)
+  
+  dbc = getLocalDatabase(results['dest_folder'])
+  docid_compare = docIdCounts(dbc, hosts)
   
   with codecs.open( os.path.join(results_folder, ANALYSIS_FILE), 
                     mode='wb', 
@@ -362,6 +712,19 @@ def analyzeThis(results_folder, format="text"):
         len(filename_check[delta['A']]),
         delta['A'])
       )
+      
+    #print( template.render(hosts=hosts) )  
+    
+    print "            " + " ".join(hosts)
+    i = 0
+    for host_a in hosts:
+      olin = host_a.split(".")[0]
+      j = 0
+      for host_b in hosts:
+        olin += "  {0}".format( docid_compare['comparisons'][i][j]['delta'] ) 
+        j += 1
+      print( olin )
+      i += 1
   elif format == "json":
     print json.dumps(results, encoding="utf-8", indent=2)
 
@@ -443,10 +806,18 @@ def main():
     hosts = args.hosts.split(',')
   else:
     hosts = config.hosts(args.environment)
-  results = {"request":{},
+  results = {"hosts": hosts,
+             "request":{},
              "results":{}
              }
-  doGetIdentifiersPSQL(results, hosts, dest_folder, args.node_id, date_start, date_end)
+  #Load the identifiers for the specified constraints
+  doGetIdentifiersPSQL(results,
+                       hosts, 
+                       dest_folder, 
+                       args.node_id, 
+                       date_start, 
+                       date_end)
+  #Load the docids from the specified hosts
   doGetDataDocumentList(results, hosts, dest_folder)
   dest_file = os.path.join(dest_folder, RESULTS_FILE)
   with codecs.open(dest_file, mode='wb', encoding='utf-8') as dfile:
