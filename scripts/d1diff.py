@@ -197,10 +197,6 @@ def compare_one(args, node_id, env_dict, cn_client, cn_base_url):
   )
   n_solr_records = count_solr_records(env_dict, mn_node_id)
 
-  for k in mn_pid_dict:
-    print k
-  return
-
   print
   print '-' * 80
   print
