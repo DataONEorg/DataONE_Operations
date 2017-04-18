@@ -317,7 +317,8 @@ def main():
   dest_folder = args.dest_folder
   if dest_folder is None:
     if args.analyze_only:
-      raise ValueError("dest_folder must be specified for analyze_only option.")
+      logger.error("dest_folder must be specified for analyze_only option.")
+      return 1
     tnow = datetime.datetime.utcnow()
     if args.hosts is not None:
       dest_folder = "getpids_custom_{1}".format(tnow.strftime("%Y%m%d"))
@@ -350,7 +351,12 @@ def main():
   results = {"request":{},
              "results":{}
              }
-  doGetIdentifiersPSQL(results, hosts, dest_folder, args.node_id, date_start, date_end)
+  try:
+    doGetIdentifiersPSQL(results, hosts, dest_folder, 
+                         args.node_id, date_start, date_end)
+  except ValueError as e:
+    logger.error(e)
+    return 1
   doGetDataDocumentList(results, hosts, dest_folder)
   dest_file = os.path.join(dest_folder, RESULTS_FILE)
   with codecs.open(dest_file, mode='wb', encoding='utf-8') as dfile:
