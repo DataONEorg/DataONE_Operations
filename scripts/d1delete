@@ -50,7 +50,7 @@ def doDelete(client, pid):
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser = argparse.ArgumentParser(description='Delete an object in a DataONE environment.')
   parser.add_argument('-E', '--certificate',
                       default=None,
                       help='Certificate to authenticate request.')
