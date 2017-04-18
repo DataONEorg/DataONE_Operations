@@ -14,11 +14,14 @@ from d1_client import cnclient
 
 
 def doGetFields(base_url, core='solr'):
-  client = cnclient.CoordinatingNodeClient(base_url, capture_response_body=True)
-  response = client.getQueryEngineDescription(core)
+  client = cnclient.CoordinatingNodeClient(base_url)
+  raw_response = client.getQueryEngineDescriptionResponse(core)
+  response = client._read_dataone_type_response(raw_response,
+                                                'QueryEngineDescription')
+  
   results = {'base_url': base_url,
              'fields': [],
-             'xml': client.last_response_body}
+             'xml': raw_response.text}
   for qf in response.queryField:
     f = {'name': qf.name,
          'description': " ".join(qf.description),
