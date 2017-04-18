@@ -29,19 +29,37 @@ Installs a locally editable version of the tools:
 
 2. ``cd`` to the project
 
-3. ``pip install -U --user -e .``
+3. ``pip install -U -e .``
 
 This assumes that you have the DataONE python common and libclient libraries installed. If
 not then install from PyPi (``pip install dataone.libclient``) or for a locally editable install:
 
 1. Checkout d1_python_
 
-2. ``pip install -U --user -e d1_python/d1_common_python/src``
+2. ``pip install -U -e d1_python/d1_common_python/src``
 
-3. ``pip install -U --user -e d1_python/d1_libclient_python/src``
+3. ``pip install -U -e d1_python/d1_libclient_python/src``
 
 .. _d1_python: https://github.com/DataONEorg/d1_python
 
+**Locally editable installation in a virtual environment with Conda**
+
+If you have Anaconda_ installed (highly recommended), then the following installation steps provide a setup that can be tweaked::
+
+  conda create -n d1tools-dev python=2.7
+  source activate d1tools-dev
+  cd d1tools-dev
+  pip install -U setuptools
+  pip install -U humanize
+  export CC=/usr/bin/clang
+  export CXX=/usr/bin/clang++
+  git clone "https://github.com/DataONEorg/d1_python.git"
+  git clone "https://github.com/DataONEorg/DataONE_Operations.git"
+  pip install -U -e d1_python/d1_common_python/src
+  pip install -U -e d1_python/d1_libclient_python/src
+  pip install -U -e DataONE_Operations
+
+.. _Anaconda: https://www.continuum.io/downloads
 
 Initialization
 --------------
