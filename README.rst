@@ -46,18 +46,18 @@ not then install from PyPi (``pip install dataone.libclient``) or for a locally 
 
 If you have Anaconda_ installed (highly recommended), then the following installation steps provide a setup that can be tweaked::
 
-conda create -n d1tools-dev python=2.7
-source activate d1tools-dev
-cd d1tools-dev
-pip install -U setuptools
-pip install -U humanize
-export CC=/usr/bin/clang
-export CXX=/usr/bin/clang++
-git clone "https://github.com/DataONEorg/d1_python.git"
-git clone "https://github.com/DataONEorg/DataONE_Operations.git"
-pip install -U -e d1_python/d1_common_python/src
-pip install -U -e d1_python/d1_libclient_python/src
-pip install -U -e DataONE_Operations
+  conda create -n d1tools-dev python=2.7
+  source activate d1tools-dev
+  cd d1tools-dev
+  pip install -U setuptools
+  pip install -U humanize
+  export CC=/usr/bin/clang
+  export CXX=/usr/bin/clang++
+  git clone "https://github.com/DataONEorg/d1_python.git"
+  git clone "https://github.com/DataONEorg/DataONE_Operations.git"
+  pip install -U -e d1_python/d1_common_python/src
+  pip install -U -e d1_python/d1_libclient_python/src
+  pip install -U -e DataONE_Operations
 
 .. _Anaconda: https://www.continuum.io/downloads
 
