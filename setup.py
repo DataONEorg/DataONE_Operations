@@ -18,7 +18,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.9.0',
+    version='0.10.0',
 
     description='Utilities for administrative operations in DataONE',
     long_description=long_description,
@@ -68,7 +68,8 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['requests', 'fabric','xmljson','dateparser'],
+    install_requires=['requests', 'fabric', 'xmljson', 'dateparser',
+                      'humanize', 'pytz', 'python-ldap' ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
