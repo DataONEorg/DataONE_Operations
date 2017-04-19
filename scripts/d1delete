@@ -10,6 +10,9 @@ The delete operation can only be run by a user authenticated as a CN administrat
 operation will remove all copies of the content (including replicas), and remove the entry from the search index. The
 identifier will remain in the system and can not be reused.
 
+'''
+
+'''
 TODO: investigate why successful delete in production did not clear the entry form the search index.
 
 cn-orc-1:/var/log/dataone/index$ grep -r "seadva-e056e535-da57-40c0-90c1-c2e55d2ec573" *
@@ -50,7 +53,8 @@ def doDelete(client, pid):
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Delete an object in a DataONE environment.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-E', '--certificate',
                       default=None,
                       help='Certificate to authenticate request.')
