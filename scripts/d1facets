@@ -1,7 +1,7 @@
 #!/bin/env python
-
 '''
 List facet values from solr
+
 '''
 
 import sys
@@ -46,7 +46,8 @@ def main():
 
   :return: int for sys.exit()
   '''
-  parser = argparse.ArgumentParser(description='List solr index facet values for a field.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-C', '--core',
                       default='solr',
                       help='Name of solr index to use (solr)')
