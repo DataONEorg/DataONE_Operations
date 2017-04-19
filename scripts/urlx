@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''
+"""
 URL encode or decode
 
 Examples:
@@ -23,7 +23,7 @@ Examples:
 
   echo "https%3A//some.host.name/path%20with/spaces/test%3Fq%3Da%3Ab%26rows%3D10%23fragment%0A" | urlx -d
   https://some.host.name/path with/spaces/test?q=a:b&rows=10#fragment
-'''
+"""
 
 import sys
 import logging
@@ -31,6 +31,7 @@ import argparse
 import urllib
 import urlparse
 import posixpath
+
 
 # from http://stackoverflow.com/questions/7894384/python-get-url-path-sections
 def pathParse(path_string, normalize=True, module=posixpath):
@@ -114,7 +115,7 @@ def doDecode(instr, full_url=False):
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(description='URL encode or decode input text.')
+  parser = argparse.ArgumentParser(description=__doc__,                                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-l', '--log_level',
                       action='count',
                       default=0,
