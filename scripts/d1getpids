@@ -291,7 +291,8 @@ def main():
 
   :return: int for sys.exit()
   '''
-  parser = argparse.ArgumentParser(description='Retrieve identifiers from a CN direct from database.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-n', '--node_id',
                       default=None,
                       help='Origin Node Identifier for identifiers')
