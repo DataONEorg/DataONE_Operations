@@ -110,7 +110,8 @@ def getProcessingServicesEnabled():
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Get or Set the state of CN processing services.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-S', '--set_state',
                       default=None,
                       help="Set services state (TRUE or FALSE)")
