@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 '''
+INCOMPLETE
+
 Check for the presences of an identifier on the coordinating nodes for an envronment.
 
 1. is the system metadata retrievable?
@@ -218,7 +220,8 @@ docid: {docid}""".format(**accumulator['data']['data'])
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Inspect PID in a DataONE environment.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-p', '--per_node',
                       action="store_true",
                       help="Show per node info for PID")

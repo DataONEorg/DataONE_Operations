@@ -43,7 +43,8 @@ def doResolve(pid, environments, configuration):
 def main():
   defaults = {'format':['text', 'json', 'yaml', 'xml'],
               }
-  parser = argparse.ArgumentParser(description='Resolve identifier in a DataONE environment.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-u', '--urls_only',
                       action='store_true',
                       help='Only present URLs from which object can be retrieved')

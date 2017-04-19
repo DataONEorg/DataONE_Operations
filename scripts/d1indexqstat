@@ -1,4 +1,7 @@
 '''
+Examine the postgres index queue.
+
+Requires shell access and appropriate .pgpass setup
 
 select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node, status, deleted, formatid, count(*) as cnt
 from index_task group by node,status,deleted,formatid order by node, status;
@@ -109,7 +112,8 @@ def getIndexQueuePIDs(dest_file, status, tmp_file=None, include_timestamps=False
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Retrieve identifiers from a CN direct from database.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('host',
                       help='Host name to query')
   parser.add_argument('-N', '--include_node',

@@ -37,7 +37,8 @@ def main():
 
   :return: int for sys.exit()
   '''
-  parser = argparse.ArgumentParser(description='Retrieve SystemMetadata for an object.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-r','--raw',
                       default=False,
                       action='store_true',

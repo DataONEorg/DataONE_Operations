@@ -50,7 +50,8 @@ def setNodeProperty(host, certificate, nodeid, properties):
 
 
 def main():
-  parser = argparse.ArgumentParser(description='Perform administrative operations for a Member Node.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('node_id',
                       help="Node for operations")
   parser.add_argument('-D', '--sync_date',

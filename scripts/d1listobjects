@@ -49,7 +49,8 @@ def main():
 
   :return: int for sys.exit()
   '''
-  parser = argparse.ArgumentParser(description='List Objects on a CN or MN.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-B', '--base_url',
                       default=None,
                       help='Base URL of node to connect with (overrides -e)')

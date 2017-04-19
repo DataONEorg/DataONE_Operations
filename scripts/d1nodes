@@ -86,7 +86,8 @@ def renderTextResults(data, fields):
 
 # synchronize="false" type="cn" state="up"
 def main():
-  parser = argparse.ArgumentParser(description='List nodes in an environment.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-B', '--baseurl',
                       action='store_true',
                       help='Only present base URLs of nodes')
