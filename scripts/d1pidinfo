@@ -52,8 +52,8 @@ class D1PIDInfo(object):
           return
     self._L.info("Creating V2 CN client for baseURL %s", base_url)
     self.client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
-                                                          api_major=2,
-                                                          capture_response_body=True)
+            api_major=2,
+            capture_response_body=True)
 
 
   def _getBaseUrls(self, primary_only=True):

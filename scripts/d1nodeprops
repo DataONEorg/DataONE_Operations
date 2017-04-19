@@ -67,7 +67,7 @@ def main():
                          " ,".join(d1np.ALLOWED_PROPERTIES)))
   parser.add_argument('-o', '--operation',
                       default='read',
-                      help='Operation to perform (read or update)') 
+                      help='Operation to perform (read, update, list)') 
   parser.add_argument('-p', '--password',
                       default=None,
                       help='LDAP bind password for cn=admin,dc=dataone,dc=org')
@@ -77,16 +77,32 @@ def main():
                       help='Value of property to set, no value update deletes')
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   logger = logging.getLogger('main')
-  if args.nodeid is None:
-    print("nodeid is requried")
-    return 1
   operation = args.operation.lower()
-  if operation not in ['read', 'update']:
+  if operation not in ['read', 'update', 'list']:
     print("operation must be one of 'read' or 'update', not '{0}'".format(operation))
     return 1
   the_key = args.key
   conn = d1np.getLDAPConnection(host=args.host,
                                 password=args.password)
+  if operation == 'list':
+    res = d1np.listNodes(conn, attrs=['d1NodeId', 
+                                      'd1NodeApproved', 
+                                      'd1NodeState', 
+                                      'd1NodeSynchronize',
+                                      'd1NodeReplicate',])
+    nwidth = 0
+    for row in res:
+      if len(row[0]) > nwidth:
+        nwidth = len(row[0])+1
+    fmtstr = "{0:" + str(nwidth) + "} {1:6} {2:5} {3:6} {4:6}"
+    row = ['NodeId','Approv','State','Sync','Repl']
+    print(fmtstr.format(*row))
+    for row in res:
+      print(fmtstr.format(*row))
+    return 0
+  if args.nodeid is None:
+    print("nodeid is requried")
+    return 1
   if operation == 'update':
     if the_key not in d1np.ALLOWED_PROPERTIES:
       print("Key must be one of: {0}".format( \

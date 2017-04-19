@@ -362,8 +362,8 @@ class CNodeComparison(object):
                         node_id=None, 
                         date_start=None, 
                         date_end=None):
-    #self.setMetadata('hosts', hosts)
-    #self.getDocids(hosts)
+    self.setMetadata('hosts', hosts)
+    self.getDocids(hosts)
     self.getIdentifiers(hosts, 
                         node_id=node_id, 
                         date_start=date_start, 
@@ -437,9 +437,9 @@ class CNodeComparison(object):
 
 
   def analyzeData(self):
-    #docid_counts = self.docIdCounts()
-    #self.setMetadata('docid_counts', DOCID_ANALYSIS)
-    #self.writeJsonFile( DOCID_ANALYSIS, docid_counts )
+    docid_counts = self.docIdCounts()
+    self.setMetadata('docid_counts', DOCID_ANALYSIS)
+    self.writeJsonFile( DOCID_ANALYSIS, docid_counts )
     docid_counts = None
     pid_counts = self.pidCounts()
     self.setMetadata('pid_counts', PID_ANALYSIS)
