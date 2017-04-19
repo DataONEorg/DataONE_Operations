@@ -45,7 +45,8 @@ def main():
   :return: int for sys.exit()
   '''
   defaults = defaults = { 'format': ['text', 'json', 'yaml', 'xml'] }
-  parser = argparse.ArgumentParser(description='List solr index fields for a core.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-B', '--base_url',
                       default=None,
                       help='Base URL of node to connect with (overrides -e)')
