@@ -8,7 +8,7 @@ import logging
 import argparse
 import d1_admin_tools
 from d1_admin_tools import dataone_response
-from d1_client import d1baseclient_2_0
+from d1_client import baseclient_2_0
 
 
 def getSystemMetadata(client, pid):
@@ -58,7 +58,7 @@ def main():
   base_url = args.baseURL
   if base_url is None:
     base_url = config.envPrimaryBaseURL(args.environment)
-  client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True, cert_path=args.certificate)
+  client = baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True, cert_path=args.certificate)
   if args.raw:
     response = client.getSystemMetadataResponse(pid)
     logging.info("Response status: %d",client.status_code)
