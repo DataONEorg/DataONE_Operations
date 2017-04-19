@@ -1,9 +1,9 @@
 '''
 Archive an object in DataONE.
 
-Archiving does not delete any content, it indicates that the object is to be removed from the
-search index and so become undiscoverable through normal means. The content will still resolve
-normally and will be retrievable.
+Archiving does not delete any content, it indicates that the object is to be
+removed from the search index and so become undiscoverable through normal
+means. The content will still resolve normally and will be retrievable.
 '''
 
 import sys
@@ -30,7 +30,8 @@ def doArchive(client, pid):
 def main():
   defaults = {'format':['text', 'xml'],
               }
-  parser = argparse.ArgumentParser(description='Archive an object in DataONE.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('pid',
                       help="Identifier to archive")
   parser.add_argument('-E', '--certificate',
