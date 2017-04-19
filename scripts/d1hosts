@@ -33,7 +33,8 @@ def main():
   '''
   defaults = {'environment': None,
               'format':['csv','json','text']}
-  parser = argparse.ArgumentParser(description='List envrionment hosts.')
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-p', '--primary',
                       default=False,
                       action='store_true',
