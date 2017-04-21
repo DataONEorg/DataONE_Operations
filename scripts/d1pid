@@ -1,0 +1,298 @@
+"""
+User perspective view of PID
+
+This script provides information about an object in DataONE including:
+
+- is PID or SID
+- origin node
+- resolve locations [optional check]
+- when object was added to DataONE and when last modified
+- the type and size of object
+- revision chain of object
+- number of downloads
+- access permissions
+"""
+
+import sys
+import logging
+import argparse
+import time
+import d1_admin_tools
+import requests
+from contextlib import closing
+import d1_common.types.exceptions
+
+
+#TODO: support authenticated request
+def testDownload(url, terminate_secs=3, terminate_max_bytes=5000):
+  """
+  Test GET operation, terminating the request
+  
+  Performs a GET operation on the supplied URL and terminates the response after terminate_secs seconds
+  or after terminate_max_bytes have been retrieved from the server, which ever happens first.
+  
+  Args:
+    url: URL target for GET request
+    terminate_secs: Number of seconds after which connection is terminated
+    terminate_max_bytes: maximum number of bytes to download before terminating 
+
+  Returns: status code, -1 if connection timed out on try; -2 on connection error 
+  """
+  _l = logging.getLogger("testDownload")
+  status_code = -1
+  try:
+    with closing(requests.get(url, timeout=terminate_secs, stream=True)) as r:
+      data = ''
+      total_bytes = 0
+      tstart = time.time()
+      try:
+        for data in r.iter_content():
+          total_bytes += len(data)
+          if total_bytes > terminate_max_bytes:
+            _l.info("Request terminated by maximum bytes")
+            raise StopIteration()
+          if time.time() - tstart > terminate_secs:
+            _l.info("Request terminated by total time")
+            raise StopIteration()
+      except StopIteration:
+        pass
+      status_code = r.status_code
+  except requests.exceptions.Timeout as e:
+    _l.info("Request timed out on connection")
+    status_code = -1
+  except requests.exceptions.ConnectionError as e:
+    _l.info("Request failed with connection error: %s", str(e))
+    status_code = -2
+  return status_code
+
+
+def pyxbV(v, castas=unicode):
+  pv = None
+  if v is None:
+    return pv
+  if hasattr(v, 'value'):
+    pv = v.value()
+  else:
+    pv = v
+  try:
+    rv = castas( pv )
+  except ValueError as e:
+    rv = unicode( pv )
+  return rv
+
+
+def checksumToStruct(c):
+  '''
+  
+  Args:
+    c: 
+
+  Returns:
+
+  '''
+  o = {'v': pyxbV(c),
+       'algorithm': pyxbV(c.algorithm)}
+  return o
+
+
+def accessRuleToStruct(a):
+  '''
+  
+  Args:
+    a: 
+
+  Returns:
+
+  '''
+  o = {'subject': [],
+       'permission': [],
+       }
+  for subject in a.subject:
+    o['subject'].append(pyxbV(subject))
+  for permission in a.permission:
+    o['permission'].append(pyxbV(permission))
+  return o
+
+
+def accessPolicyToStruct(p):
+  '''
+  
+  Args:
+    p: 
+
+  Returns:
+
+  '''
+  o = []
+  for access_rule in p.allow:
+    o.append(accessRuleToStruct(access_rule))
+  return o
+
+
+def replicationPolicyToStruct(r):
+  '''
+  
+  Args:
+    r: 
+
+  Returns:
+
+  '''
+  o = {'replicationAllowed': pyxbV(r.replicationAllowed, bool),
+       'numberReplicas': pyxbV(r.numberReplicas, int),
+       'preferredMemberNode': [],
+       'blockedMemberNode':[],
+       }
+  for node in r.preferredMemberNode:
+    o['preferredMemberNode'].append(pyxbV(node))
+  for node in r.preferredMemberNode:
+    o['blockedMemberNode'].append(pyxbV(node))
+  return o
+
+
+def systemMetadataToStruct(s):
+  '''
+  Returns a hierarchical dict that mimics the provided System Metadata
+  Args:
+    sysmeta: 
+
+  Returns:
+
+  '''
+  o = {'serialVersion':pyxbV(s.serialVersion, int),
+       'identifier': pyxbV(s.identifier),
+       'formatId': pyxbV(s.formatId),
+       'size': pyxbV(s.size, int),
+       'checksum': checksumToStruct(s.checksum),
+       'submitter': pyxbV(s.submitter),
+       'rightsHolder': pyxbV(s.rightsHolder),
+       'accessPolicy': accessPolicyToStruct(s.accessPolicy),
+       'replicationPolicy': replicationPolicyToStruct(s.replicationPolicy),
+       'obsoletes': pyxbV(s.obsoletes),
+       'obsoletedBy': pyxbV(s.obsoletedBy),
+       'archived': pyxbV(s.archived, bool),
+       'dateuploaded': pyxbV(s.dateUploaded),
+       'dateSysMetadataModified': pyxbV(s.dateSysMetadataModified),
+       'originMemberNode': pyxbV(s.originMemberNode),
+       'authoritativeMemberNode': pyxbV(s.authoritativeMemberNode),
+       'replica': [],
+
+       'seriesId': pyxbV(s.seriesId),
+       'mediaType': None,
+       'fileName': pyxbV(s.fileName)
+       }
+  for replica in s.replica:
+    o['replica'].append({'replicaMemberNode': pyxbV(replica.replicaMemberNode),
+                         'replicationStatus': pyxbV(replica.replicationStatus),
+                         'replicaVerified': pyxbV(replica.replicaVerified),
+                         })
+  return o
+
+
+class TerminateAnalysisException(Exception):
+  pass
+
+
+class D1PIDDescribe(object):
+
+  def __init__(self, pid):
+    self._l = logging.getLogger(self.__class__.__name__)
+    self.data = {'id': pid,
+                 'pid': None,
+                 'sid': None,
+                 'system_metadata':{'status': None,
+                                    'o': None,
+                                    'xml': None,},
+                 'resolve':{},
+                 'access':{},
+                 'downloads': None,
+                 }
+
+  def doCheckAccess(self, client):
+    pass
+
+
+  def doResolve(self, client):
+    pass
+
+
+  def doGetSystemMetadata(self, client):
+    try:
+      res = client.getSystemMetadata( self.data['id'] )
+      self.data['system_metadata'] = {'o': systemMetadataToStruct( res )}
+      xml = ''
+      if hasattr(res, 'toxml'):
+        xml = res.toxml()
+      else:
+        dom = res.toDOM(None)
+        xml = dom.toprettyxml(2 * u' ')
+      self.data['system_metadata']['xml'] = xml
+      self.data['system_metadata']['status'] = 0
+    except d1_common.types.exceptions.NotFound:
+      self.data['system_metadata']['status'] = 404
+      raise TerminateAnalysisException("No System Metadata for object.")
+
+
+  def doCheckDownload(self, client):
+    pass
+
+
+  def evaluate(self, client):
+    try:
+      self.doGetSystemMetadata(client)
+      self.doResolve(client)
+      self.doCheckDownload(client)
+      self.doCheckAccess(client)
+    except TerminateAnalysisException as e:
+      self._l.warn("Evaluation terminated: %s", e)
+
+
+  def renderText(self, dest):
+    pass
+
+
+  def renderJSON(self, dest):
+    import json
+    self._l.debug(__name__)
+    json.dump(self.data, dest, indent=2)
+    return True
+
+
+  def renderXML(self, dest):
+    pass
+
+
+  def render(self, dest=sys.stdout, format=None):
+    if format is None:
+      format = 'text'
+    format = format.lower()
+    if format == 'json':
+      return self.renderJSON(dest)
+    if format =='xml':
+      return self.renderXML(dest)
+    return self.renderText(dest)
+
+
+def main():
+  '''
+  
+  :return: 
+  '''
+  defaults = {'format': ['text', 'json', 'xml'],
+              }
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('pid',
+                      help="Identifier to evaluate")
+  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
+  env_nodes = config.envNodes(args.environment)
+  client = env_nodes.getClient()
+  analyzer = D1PIDDescribe(args.pid)
+  analyzer.evaluate(client)
+  analyzer.render(format=args.format)
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())
