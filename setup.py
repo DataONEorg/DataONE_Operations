@@ -91,7 +91,6 @@ setup(
     data_files=[],
 
     scripts=['scripts/d1hosts', 
-             'scripts/d1pidinfo',
              'scripts/d1resolve',
              'scripts/d1sysmeta',
              'scripts/d1nodes',
@@ -105,7 +104,8 @@ setup(
              'scripts/d1indexqstat',
              'scripts/d1cnprocessingstate',
              'scripts/d1mnadmin',
-             'scripts/d1nodeprops'
+             'scripts/d1nodeprops',
+             'scripts/d1pidinfo',
              ],
 
     # To provide executable scripts, use entry points in preference to the
