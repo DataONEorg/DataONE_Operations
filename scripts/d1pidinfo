@@ -4,6 +4,8 @@ INCOMPLETE
 
 Check for the presences of an identifier on the coordinating nodes for an envronment.
 
+This is an administrative tool for evaluating the consistency of an identifier in the DataONE system. 
+
 1. is the system metadata retrievable?
 2. is the PID resolvable using resolve()
 3. is the content retrievable from the resolved locations?
@@ -18,8 +20,8 @@ import logging
 import argparse
 import d1_admin_tools
 from d1_client import cnclient_2_0
-#from fabric.api import hide, run, sudo, put, parallel, get, env, task, hosts, settings
-#from fabric.contrib import files as fabfiles
+from fabric.api import hide, run, sudo, put, parallel, get, env, task, hosts, settings
+from fabric.contrib import files as fabfiles
 
 
 def sysmetaToText(sysmeta, f=sys.stdout):
