@@ -49,7 +49,7 @@ from d1_admin_tools import d1_node_properties as d1np
 def main():
   defaults = {'format':['text', 'json'],
               }
-  argparse.ArgumentParser(description=__doc__,
+  parser = argparse.ArgumentParser(description=__doc__,
       formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-H', '--host',
                       default='ldap://localhost:3890',
@@ -65,14 +65,25 @@ def main():
                       default='read',
                       help='Operation to perform (read or update)') 
   parser.add_argument('-p', '--password',
-                      default=None,
+                      default='',
                       help='LDAP bind password for cn=admin,dc=dataone,dc=org')
+  parser.add_argument('-L', '--listnodes',
+                      default=False,
+                      action='store_true',
+                      help='List nodes and their approval status')
   parser.add_argument('value',
                       nargs='?',
                       default=None,
                       help='Value of property to set, no value update deletes')
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   logger = logging.getLogger('main')
+  if args.listnodes:
+    conn = d1np.getLDAPConnection(host=args.host,
+                                  password=args.password)
+    nodes = d1np.listNodes(conn, attrs=['d1NodeId','d1NodeApproved', 'd1NodeName'])
+    for node in nodes:
+      print("{0:20} {1:6} {2}".format(*node))
+    return 0
   if args.nodeid is None:
     print("nodeid is requried")
     return 1
