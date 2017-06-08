@@ -2,6 +2,17 @@
 
 """
 List objects from a CN or MN using the listObjects API
+
+If a connection to RethinkDB is specified, then the output is added to a table with the structure:
+
+[ { environment: '', 
+    identifier: '', 
+    formatId: '', 
+    checksum: '',
+    dateSysMetadataModified: ''},
+    ...
+]
+ 
 """
 
 import sys
@@ -12,6 +23,12 @@ from datetime import datetime
 import pytz
 import d1_admin_tools
 from d1_admin_tools import dataone_response
+import inspect
+from hashlib import sha1
+try:
+  import rethinkdb as r
+except ImportError:
+  pass
 
 #YYYY-MM-DDTHH:MM:SS.mmm+00:00
 DATAONE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
@@ -39,6 +56,47 @@ def dateTimeToRelative(dt0, dt1, as_days=False):
     return delta.days + nsec / 86400.0
   return delta.total_seconds()
   
+
+def getDBConnection(host='127.0.0.1', port=28015, database='d1_production', table='objects'):
+  _l = logging.getLogger(inspect.currentframe().f_code.co_name)
+  conn = r.connect(host=host, port=port)
+  try:
+    _l.info("Creating database...")
+    r.db_create(database).run(conn)
+  except r.RqlRuntimeError:
+    pass
+  try:
+    r.db(database).table_create(table).run(conn)
+  except r.RqlRuntimeError:
+    conn.close()
+  conn = r.connect(host=host, port=port, db=database)
+  return conn
+
+
+def storeRethinkDB(conn, entries, table='objects', start=0):
+  _l = logging.getLogger(inspect.currentframe().f_code.co_name)
+  start = int(start)
+  for entry in entries:
+    pid = entry.identifier.value().strip()
+    item = {'id': sha1(pid.encode('utf-8')).hexdigest(),
+            'pid': pid,
+            'formatId':entry.formatId,
+            'checksum': {'algorithm': entry.checksum.algorithm,
+                         'v': entry.checksum.value()
+                         },
+            'dateSysMetadataModified': entry.dateSysMetadataModified,
+            'size': entry.size }
+    _l.info(u"%d : %s", start, pid)
+    #r.table(table).insert(item).run(conn)
+    r.table(table).get(item['id']).replace(
+      lambda doc: r.branch(
+        doc == None,
+        r.expr(item).merge({'created_at': r.now()}),
+        doc.merge(item).merge({'updated_at': r.now()})
+      )
+    ).run(conn)
+    start += 1
+
 
 def main():
   '''
@@ -89,12 +147,16 @@ def main():
                       default=False,
                       action='store_true',
                       help='Show date modified as days relative to now.')
+  parser.add_argument('-D','--rethinkdb',
+                      help='Stash output to RethinkDB instance, host:port/table',
+                      default=None)
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')
   if args.api_version not in ["1", "2"]:
     logger.error("API version must be '1' or '2', not '%s'", args.api_version)
     return 1
   base_url = args.base_url
+  node_id = args.node_id
   if base_url is None:
     if args.node_id is None:
       node_id = config.envPrimaryNodeId(args.environment)
@@ -127,10 +189,16 @@ def main():
     client = env_nodes.getClient(node_id)
 
   current_time = datetime.now(pytz.utc)
+  dbconn = None
+  store_database = False
+  if args.rethinkdb is not None:
+    dbconn = getDBConnection()
+    store_database = True
+  start_index = args.start_index
   while n_retrieved < max_to_retrieve:
     res = None
     kwparams = {'count':args.page_size,
-                'start': args.start_index,
+                'start': start_index,
                 'fromDate': date_start,
                 'toDate': date_end}
     if args.node_id is not None:
@@ -149,30 +217,35 @@ def main():
         max_to_retrieve = total_records
     n_retrieved += res.content.count
     logger.info("Retrieved: %d", n_retrieved)
-    start_index = res.content.start + res.content.count
-    if args.format == 'xml':
-      print res.asXML()
+    if store_database:
+      storeRethinkDB(dbconn, res.content.objectInfo, start=start_index)
     else:
-      for entry in res.content.objectInfo:
-        data = {'counter': counter,
-                'size': humanize.naturalsize(entry.size, binary=True),
-                'date_modified': dateTimeToText(entry.dateSysMetadataModified),
-                'tdelta': dateTimeToRelative(entry.dateSysMetadataModified, current_time, as_days=True),
-                'pid': entry.identifier.value().strip(),
-                'format_id':entry.formatId}
-        if args.only_identifiers:
-          print(u"{pid}".format(**data))
-        else:
-          row = [u"{counter:0>6}:".format(**data), ]
-          row.append( u"{size:>11} ".format(**data) )
-          if args.relative:
-            row.append( u"{tdelta:8.2f} ".format(**data) )
+      if args.format == 'xml':
+        print res.asXML()
+      else:
+        for entry in res.content.objectInfo:
+          data = {'counter': counter,
+                  'size': humanize.naturalsize(entry.size, binary=True),
+                  'date_modified': dateTimeToText(entry.dateSysMetadataModified),
+                  'tdelta': dateTimeToRelative(entry.dateSysMetadataModified, current_time, as_days=True),
+                  'pid': entry.identifier.value().strip(),
+                  'format_id':entry.formatId}
+          if args.only_identifiers:
+            print(u"{pid}".format(**data))
           else:
-            row.append( u"{date_modified:<21}".format(**data) )
-          row.append( u"{format_id:<45}".format(**data) )
-          row.append( u"{pid}".format(**data) )
-          print( u" ".join(row) )
-        counter += 1
+            row = [u"{counter:0>6}:".format(**data), ]
+            row.append( u"{size:>11} ".format(**data) )
+            if args.relative:
+              row.append( u"{tdelta:8.2f} ".format(**data) )
+            else:
+              row.append( u"{date_modified:<21}".format(**data) )
+            row.append( u"{format_id:<45}".format(**data) )
+            row.append( u"{pid}".format(**data) )
+            print( u" ".join(row) )
+          counter += 1
+    start_index = res.content.start + res.content.count
+  if dbconn is not None:
+    dbconn.close()
   return 0
 
 
