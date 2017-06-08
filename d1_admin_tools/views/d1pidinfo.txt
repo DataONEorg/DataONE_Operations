@@ -3,6 +3,7 @@ DataONE Identifier Report
 =========================
 
 Identifier checked: {{ id }}
+
 Report generated: {{ generated_date }}
 
 Object Information
@@ -14,15 +15,33 @@ Indexed Information
 
 Shows the values added to the search index for this object.
 
+.. list-table::
+   :widths: 5 15
+   :header-rows: 1
+
+   * - Field
+     - Value {% for item in index.o.docs[0] | dictsort %}
+   * - {{item[0]}}
+     - {{item[1] | string | indent(8, false)}} {% endfor %}
+
+
+
 
 Relations
 ---------
 
+* This object obsoletes {{relations.obsoletes}}
+
+* This object is obsoleted by {{relations.obsoletedBy}}
+
+* This object is contained in the packages:
+{% for pid in relations.packages %}{{ pid }}
+{% endfor %}
 
 Availability
 ------------
 
-Tests whether the object can be accessed at each of the URLs resported CN.resolve.
+Tests whether the object can be accessed at each of the URLs reported CN.resolve.
 {% for e in resolve.o.objectLocation %}
 * {{e.nodeIdentifier}} ({{e.version |join(", ")}}) : {{e.status}}{% endfor %}
 
