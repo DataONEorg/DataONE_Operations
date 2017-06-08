@@ -422,10 +422,11 @@ class D1PIDDescribe(object):
     query_engine = 'solr'
     pid = prepareSolrQueryTerm(self.data['pid'])
     q = {'q': u'id:{0}'.format(pid),
-         'fl': '*',
-         'wt': 'json',
-         }
-    response = client.queryResponse(query_engine, "/", **q)
+                    'fl': '*',
+                    'wt': 'json',
+        }
+    #wt? "query" is converted to "params" way down inside...
+    response = client.queryResponse(query_engine, '/', query=q)
     self.data['index']['status'] = response.status_code
     content = json.loads(response.content)
     self.data['index']['o'] = content['response']
@@ -441,6 +442,16 @@ class D1PIDDescribe(object):
       self.data['pid'] = self.data['resolve']['o']['identifier']
       self.data['sid'] = self.data['system_metadata']['o']['seriesId']
       self.doGetIndexDocument(client)
+
+      relations = {}
+      relations['obsoletes'] = self.getObsoletes()
+      relations['obsoletedBy'] = self.getObsoletedBy()
+      relations['packages'] = self.getContainingPackages() #packages containing this pid
+      siblings = {}
+      for package_id in relations['packages']:
+        siblings[package_id] = self.getSiblings(package_id)
+      relations['siblings'] = siblings
+      self.data['relations'] = relations
     except TerminateAnalysisException as e:
       self._l.warn("Evaluation terminated: %s", e)
 
@@ -449,7 +460,15 @@ class D1PIDDescribe(object):
     from jinja2 import Environment, Template, PackageLoader
     env = Environment(loader = PackageLoader('d1_admin_tools','views'))
     template = env.get_template('d1pidinfo.txt')
-    print(template.render(self.data))
+    dest.write( template.render(self.data) )
+
+
+  def renderHtml(self, dest):
+    from jinja2 import Environment, Template, PackageLoader
+    env = Environment(loader = PackageLoader('d1_admin_tools','views'))
+    template = env.get_template('d1pidinfo.html')
+    dest.write( template.render(self.data) )
+
 
 
   def renderJSON(self, dest):
@@ -469,12 +488,57 @@ class D1PIDDescribe(object):
     return self.renderText(dest)
 
 
+  def getObsoletes(self):
+    return self.data['system_metadata']['o']['obsoletes']
+
+
+  def getObsoletedBy(self):
+    return self.data['system_metadata']['o']['obsoletedBy']
+
+
+  def getSeriesId(self):
+    return self.data['system_metadata']['o']['seriesId']
+
+
+  def getContainingPackages(self):
+    '''
+    PIDs of any package containing this PID
+    Returns:
+      list of PIDs
+    '''
+    ndocs = self.data['index']['o']['numFound']
+    if ndocs == 0:
+      return []
+    try:
+      return self.data['index']['o']['docs'][0]['resourceMap']
+    except KeyError as e:
+      return []
+
+
+  def getSiblings(self, package_id):
+    '''
+    Return the immediate siblings of self as defined by the resource map = package_id
+    
+    Args:
+      package_id: identifier of the resource map to evaluate 
+
+    Returns:
+      dictionary of relations to siblings
+    '''
+    #TODO: implement this
+    sibs = {'documents': [],          #CITO:documents
+            'isDocumentedBy': [],     #CITO:isDocumentedBy
+            'wasDerivedFrom': [],      #PROV:wasderivedFrom
+           }
+    return sibs
+
+
 def main():
   '''
   
   :return: 
   '''
-  defaults = {'format': ['text', 'json', ],
+  defaults = {'format': ['text', 'json', 'html', ],
               }
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
