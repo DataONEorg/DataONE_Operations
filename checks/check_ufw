@@ -1,0 +1,14 @@
+#!/bin/bash
+# Check if the firewall is enabled
+
+count=$(ufw status | grep -c Status:\ active)
+if [ $count -gt 0 ] ; then
+    status=0
+    statustxt=OK
+    ufwstatus=Enabled
+else
+    status=0
+    statustxt=WARNING
+    ufwstatus=Disabled
+fi
+echo "$status UFW - $statustxt - Firewall (UFW) is $ufwstatus"
