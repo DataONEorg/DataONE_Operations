@@ -186,16 +186,20 @@ def createOrUpdateNodeProperty(con, node_id, key, value):
   return updateNodeProperty(con, node_id, key, value, old_value=res[0][3])
 
 
-def listNodes(con):
+def listNodes(con, attrs=None):
   '''Retrieve a list of all node_ids by examining LDAP
   '''
   result = []
   dn = "dc=dataone,dc=org"
   q = "(&(objectClass=d1Node)(d1NodeType=mn))"
-  attrs = ['d1NodeId']
+  if attrs is None:
+    attrs = ['d1NodeId']
   res = con.search_s(dn, ldap.SCOPE_SUBTREE, q, attrs)
   for entry in res:
-    result.append(_readEntryValue(entry, 'd1NodeId'))
+    row = []
+    for att in attrs:
+      row.append(_readEntryValue(entry, att ))
+    result.append(row)
   return result
 
 
