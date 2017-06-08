@@ -15,6 +15,14 @@ import pytz
 import humanize
 
 
+
+def getProperty(node, key, default=''):
+  for prop in node.property_:
+    if prop.key == key:
+      return prop.value()
+  return default
+
+
 def doListNodes(config, env, node_type='all'):
   '''
   returns  dict with {xml}, items:[  ]
@@ -42,6 +50,7 @@ def doListNodes(config, env, node_type='all'):
            'lastHarvested':'',
            'lastHarvest':'',
            'schedule_text':'',
+           'CN_date_operational':getProperty(node, 'CN_date_operational'),
            }
     if node.type.lower() == 'mn':
       row['lastHarvested'] = node.synchronization.lastHarvested.strftime("%Y-%m-%dT%H:%M:%S%Z")
@@ -101,6 +110,10 @@ def main():
                       default=False,
                       action='store_true',
                       help = "Show synchronization schedule information")
+  parser.add_argument("-o", "--online_date",
+                      default=False,
+                      action="store_true",
+                      help="Show when nodes became production")
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')
 
@@ -147,6 +160,8 @@ def main():
   fields = ['nodeId', 'baseUrl', 'name']
   if args.schedule:
     fields = ['nodeId', 'baseUrl', 'lastHarvest', 'schedule_text']
+  if args.online_date:
+    fields.append('CN_date_operational')
   renderTextResults(results['items'], fields)
   return 0
 
