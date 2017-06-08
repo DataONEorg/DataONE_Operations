@@ -1,0 +1,33 @@
+{# Jinja2 template for rendering output form d1pid to text. #}
+DataONE Identifier Report
+=========================
+
+Identifier checked: {{ id }}
+Report generated: {{ generated_date }}
+
+Object Information
+------------------
+
+
+Indexed Information
+-------------------
+
+Shows the values added to the search index for this object.
+
+
+Relations
+---------
+
+
+Availability
+------------
+
+Tests whether the object can be accessed at each of the URLs resported CN.resolve.
+{% for e in resolve.o.objectLocation %}
+* {{e.nodeIdentifier}} ({{e.version |join(", ")}}) : {{e.status}}{% endfor %}
+
+
+Use
+---
+
+TBD

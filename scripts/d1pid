@@ -1,0 +1,497 @@
+"""
+User perspective view of PID
+
+This script provides information about an object in DataONE including:
+
+- is PID or SID
+- origin node
+- resolve locations [optional check]
+- when object was added to DataONE and when last modified
+- the type and size of object
+- revision chain of object
+
+#TODO:
+  - indexer view
+  - number of downloads
+  - access permissions
+  - related content
+"""
+
+import sys
+import logging
+import argparse
+import time
+import json
+from contextlib import closing
+import inspect
+from datetime import datetime
+import requests
+import d1_admin_tools
+import d1_common.types.exceptions
+
+#==============================================================================
+# Constants used in app
+
+JSON_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+DEFAULT_DOWNLOAD_TIMEOUT = 5
+DEFAULT_DOWNLOAD_MAXBYTES = 4096
+DEFAULT_PYXB_TYPECAST = unicode
+DEFAULT_SOLR_FIELD_TYPE= 'string'
+
+
+#==============================================================================
+# Utility methods
+
+#TODO: support authenticated request
+def testDownload(url,
+                 terminate_secs=DEFAULT_DOWNLOAD_TIMEOUT,
+                 terminate_max_bytes=DEFAULT_DOWNLOAD_MAXBYTES):
+  """
+  Test GET operation, terminating the request
+  
+  Performs a GET operation on the supplied URL and terminates the response after terminate_secs seconds
+  or after terminate_max_bytes have been retrieved from the server, which ever happens first.
+  
+  Args:
+    url: URL target for GET request
+    terminate_secs: Number of seconds after which connection is terminated
+    terminate_max_bytes: maximum number of bytes to download before terminating 
+
+  Returns: status code, -1 if connection timed out on try; -2 on connection error 
+  """
+  _l = logging.getLogger( inspect.currentframe().f_code.co_name )
+  status_code = -1
+  try:
+    with closing(requests.get(url, timeout=terminate_secs, stream=True)) as r:
+      data = ''
+      total_bytes = 0
+      tstart = time.time()
+      try:
+        for data in r.iter_content():
+          total_bytes += len(data)
+          if total_bytes > terminate_max_bytes:
+            _l.info("Request terminated by maximum bytes")
+            raise StopIteration()
+          if time.time() - tstart > terminate_secs:
+            _l.info("Request terminated by total time")
+            raise StopIteration()
+      except StopIteration:
+        pass
+      status_code = r.status_code
+  except requests.exceptions.Timeout as e:
+    _l.info("Request timed out on connection")
+    status_code = -1
+  except requests.exceptions.ConnectionError as e:
+    _l.info("Request failed with connection error: %s", str(e))
+    status_code = -2
+  return status_code
+
+
+#==============================================================================
+# Methods to assist conversion of PyxB structures to native Python
+
+def pyxbV(v, castas=DEFAULT_PYXB_TYPECAST):
+  '''
+  Return python value from provided pyxb value
+  
+  Args:
+    v: value of element from pyxb 
+    castas: type result should be cast to
+
+  Returns:
+    native python value
+  '''
+  pv = None
+  if v is None:
+    return pv
+  if hasattr(v, 'value'):
+    pv = v.value()
+  else:
+    pv = v
+  try:
+    rv = castas( pv )
+  except ValueError as e:
+    # fall back to unicode representation of value
+    rv = unicode( pv )
+  return rv
+
+
+def checksumToStruct(c):
+  '''
+  
+  Args:
+    c: 
+
+  Returns:
+
+  '''
+  o = {'v': pyxbV(c),
+       'algorithm': pyxbV(c.algorithm)}
+  return o
+
+
+def accessRuleToStruct(a):
+  '''
+  
+  Args:
+    a: 
+
+  Returns:
+
+  '''
+  o = {'subject': [],
+       'permission': [],
+       }
+  for subject in a.subject:
+    o['subject'].append(pyxbV(subject))
+  for permission in a.permission:
+    o['permission'].append(pyxbV(permission))
+  return o
+
+
+def accessPolicyToStruct(p):
+  '''
+  
+  Args:
+    p: 
+
+  Returns:
+
+  '''
+  o = []
+  for access_rule in p.allow:
+    o.append(accessRuleToStruct(access_rule))
+  return o
+
+
+def replicationPolicyToStruct(r):
+  '''
+  Generate a native python structure from ReplicationPolicy
+  
+  Args:
+    r: Instance of ReplicationPolicy
+
+  Returns:
+    Python dict mimicking ReplicationPolicy
+  '''
+  o = {'replicationAllowed': pyxbV(r.replicationAllowed, bool),
+       'numberReplicas': pyxbV(r.numberReplicas, int),
+       'preferredMemberNode': [],
+       'blockedMemberNode':[],
+       }
+  for node in r.preferredMemberNode:
+    o['preferredMemberNode'].append(pyxbV(node))
+  for node in r.preferredMemberNode:
+    o['blockedMemberNode'].append(pyxbV(node))
+  return o
+
+
+def systemMetadataToStruct(s):
+  '''
+  Generate a hierarchical dict that mimics the provided System Metadata
+  
+  Args:
+    s: instance of SystemMetadata 
+
+  Returns:
+    Python dict mimicking SystemMetadata 
+  '''
+  o = {'serialVersion':pyxbV(s.serialVersion, int),
+       'identifier': pyxbV(s.identifier),
+       'formatId': pyxbV(s.formatId),
+       'size': pyxbV(s.size, int),
+       'checksum': checksumToStruct(s.checksum),
+       'submitter': pyxbV(s.submitter),
+       'rightsHolder': pyxbV(s.rightsHolder),
+       'accessPolicy': accessPolicyToStruct(s.accessPolicy),
+       'replicationPolicy': replicationPolicyToStruct(s.replicationPolicy),
+       'obsoletes': pyxbV(s.obsoletes),
+       'obsoletedBy': pyxbV(s.obsoletedBy),
+       'archived': pyxbV(s.archived, bool),
+       'dateuploaded': pyxbV(s.dateUploaded),
+       'dateSysMetadataModified': pyxbV(s.dateSysMetadataModified),
+       'originMemberNode': pyxbV(s.originMemberNode),
+       'authoritativeMemberNode': pyxbV(s.authoritativeMemberNode),
+       'replica': [],
+
+       'seriesId': pyxbV(s.seriesId),
+       'mediaType': None,
+       'fileName': pyxbV(s.fileName)
+       }
+  for replica in s.replica:
+    o['replica'].append({'replicaMemberNode': pyxbV(replica.replicaMemberNode),
+                         'replicationStatus': pyxbV(replica.replicationStatus),
+                         'replicaVerified': pyxbV(replica.replicaVerified),
+                         })
+  return o
+
+
+def objectLocationListToStruct(l):
+  '''
+  Generate a python native struct from an objectLocationList
+  
+  Args:
+    l: instance objectLocationList
+
+  Returns:
+    Python dict mimicking ObjectLocationList
+  '''
+  o = {'identifier': pyxbV(l.identifier),
+       'objectLocation': []}
+  for loc in l.objectLocation:
+    res = {'nodeIdentifier': pyxbV(loc.nodeIdentifier),
+           'baseURL': pyxbV(loc.baseURL),
+           'version': [],
+           'url': pyxbV(loc.url),
+           'preference': pyxbV(loc.preference)
+           }
+    for v in loc.version:
+      res['version'].append(pyxbV(v))
+    o['objectLocation'].append(res)
+  return o
+
+
+# ==============================================================================
+# Solr utilities
+
+def escapeSolrQueryTerm(term):
+  '''
+  Escape a query term for a solr query.
+
+  These characters are reserved in solr queries::
+  
+    + - && || ! ( ) { } [ ] ^ " ~ * ? : \
+  
+  Args:
+    term: to be escaped
+
+  Returns:
+    Escaped term
+  '''
+
+  reserved = [
+    u'+',
+    u'-',
+    u'&',
+    u'|',
+    u'!',
+    u'(',
+    u')',
+    u'{',
+    u'}',
+    u'[',
+    u']',
+    u'^',
+    u'"',
+    u'~',
+    u'*',
+    u'?',
+    u':',
+  ]
+  term = term.replace(u'\\', u'\\\\')
+  for c in reserved:
+    term = term.replace(c, u"\%s" % c)
+  return term
+
+
+def prepareSolrQueryTerm(term, solr_type=DEFAULT_SOLR_FIELD_TYPE):
+  '''
+  Prepare a query term for inclusion in a query.  
+  
+  This escapes the term and if necessary, wraps the term in quotes.
+  
+  Args:
+    field: 
+    term: 
+
+  Returns:
+    
+  '''
+  if term == "*":
+    return term
+  addstar = False
+  if term[len(term) - 1] == '*':
+    addstar = True
+    term = term[0:len(term) - 1]
+  term = escapeSolrQueryTerm(term)
+  if addstar:
+    term = '%s*' % term
+  if solr_type in ['string', 'text', 'text_ws']:
+    return '"%s"' % term
+  return term
+
+
+#==============================================================================
+# Custom Exceptions
+
+class TerminateAnalysisException(Exception):
+  pass
+
+#==============================================================================
+
+class D1PIDDescribe(object):
+  '''
+  Build a description of an identifier.
+  '''
+
+  def __init__(self, pid):
+    self._l = logging.getLogger(self.__class__.__name__)
+    self.data = {'id': pid,                          #submitted ID
+                 'pid': None,                        #PID determined
+                 'sid': None,                        #SID determined, or None
+                 'system_metadata':{'status': None,  #System Metadata
+                                    'o': None,
+                                    'xml': None,},
+                 'resolve':{'status': None,          #Resolve response
+                            'o': None,
+                            'xml': None},
+                 'downloads': None,                  #Number of downloads
+                 'index':{'status': None,            #Index document associated with this
+                          'o': None,
+                          'xml': None},
+                 'related':[]                        #Related content, list of (predicate, object)
+                 }
+
+  def doCheckAccess(self, client):
+    pass
+
+
+  def doResolve(self, client):
+    self._l.info( inspect.currentframe().f_code.co_name )
+    try:
+      res = client.resolveResponse( self.data['id'] )
+      obj_locs = client._read_dataone_type_response(
+        res, 'ObjectLocationList', response_is_303_redirect=True
+      )
+      self.data['resolve']['o'] = objectLocationListToStruct( obj_locs )
+      xml = ''
+      #if hasattr(res, 'toxml'):
+      #  xml = res.toxml()
+      #else:
+      #  dom = res.toDOM(None)
+      #  xml = dom.toprettyxml(2 * u' ')
+      self.data['resolve']['xml'] = xml
+      self.data['resolve']['status'] = 0
+    except d1_common.types.exceptions.NotFound:
+      self.data['resolve']['status'] = 404
+
+
+  def doGetSystemMetadata(self, client):
+    self._l.info( inspect.currentframe().f_code.co_name )
+    try:
+      res = client.getSystemMetadata( self.data['id'] )
+      self.data['system_metadata']['o'] = systemMetadataToStruct( res )
+      xml = ''
+      if hasattr(res, 'toxml'):
+        xml = res.toxml()
+      else:
+        dom = res.toDOM(None)
+        xml = dom.toprettyxml(2 * u' ')
+      self.data['system_metadata']['xml'] = xml
+      self.data['system_metadata']['status'] = 0
+    except d1_common.types.exceptions.NotFound:
+      self.data['system_metadata']['status'] = 404
+      raise TerminateAnalysisException("No System Metadata for object.")
+    except d1_common.types.exceptions.ServiceFailure:
+      self.data['system_metadata']['status'] = 500
+      raise TerminateAnalysisException("Service failure getting system metadata for object!")
+    except d1_common.types.exceptions.NotAuthorized:
+      self.data['system_metadata']['status'] = 401
+      raise TerminateAnalysisException("Not authorized to access object.")
+
+
+  def doCheckDownload(self, client):
+    self._l.info( inspect.currentframe().f_code.co_name )
+    for loc in self.data['resolve']['o']['objectLocation']:
+      url = loc['url']
+      loc['status'] = testDownload(url)
+
+
+  def doGetIndexDocument(self, client):
+    '''
+    Retrieves the solr index document for the object.
+    
+    Populates self.data['index'] with the solr document
+    
+    Args:
+      client: 
+
+    Returns:
+      Nothing
+    '''
+    query_engine = 'solr'
+    pid = prepareSolrQueryTerm(self.data['pid'])
+    q = {'q': u'id:{0}'.format(pid),
+         'fl': '*',
+         'wt': 'json',
+         }
+    response = client.queryResponse(query_engine, "/", **q)
+    self.data['index']['status'] = response.status_code
+    content = json.loads(response.content)
+    self.data['index']['o'] = content['response']
+
+
+  def evaluate(self, client):
+    self.data['generated_date'] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
+    try:
+      self.doGetSystemMetadata(client)
+      self.doResolve(client)
+      self.doCheckDownload(client)
+      self.doCheckAccess(client)
+      self.data['pid'] = self.data['resolve']['o']['identifier']
+      self.data['sid'] = self.data['system_metadata']['o']['seriesId']
+      self.doGetIndexDocument(client)
+    except TerminateAnalysisException as e:
+      self._l.warn("Evaluation terminated: %s", e)
+
+
+  def renderText(self, dest):
+    from jinja2 import Environment, Template, PackageLoader
+    env = Environment(loader = PackageLoader('d1_admin_tools','views'))
+    template = env.get_template('d1pidinfo.txt')
+    print(template.render(self.data))
+
+
+  def renderJSON(self, dest):
+    self._l.debug( inspect.currentframe().f_code.co_name )
+    json.dump(self.data, dest, indent=2)
+    return True
+
+
+  def render(self, dest=sys.stdout, format=None):
+    if format is None:
+      format = 'text'
+    format = format.lower()
+    if format == 'json':
+      return self.renderJSON(dest)
+    if format =='xml':
+      return self.renderXML(dest)
+    return self.renderText(dest)
+
+
+def main():
+  '''
+  
+  :return: 
+  '''
+  defaults = {'format': ['text', 'json', ],
+              }
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('pid',
+                      help="Identifier to evaluate")
+  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
+  if args.format.lower() == 'xml':
+    print("XML output is not supported by this operation, use 'json' instead.")
+    return 1
+  env_nodes = config.envNodes(args.environment)
+  client = env_nodes.getClient()
+  analyzer = D1PIDDescribe(args.pid)
+  analyzer.evaluate(client)
+  analyzer.render(format=args.format)
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

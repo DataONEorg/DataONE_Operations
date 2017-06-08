@@ -1,0 +1,14 @@
+#!/bin/bash
+# Check that unattended upgrades are being run
+# Should be enabled for Operations servers
+
+output=$(zgrep `date +%F -d yesterday` /var/log/unattended-upgrades/unattended-upgrades.log{,.1.gz} | tail -n1 | egrep 'No\ packages\ found|All\ upgrades\ installed')
+if [ -z "$output" ] ; then
+    status=0
+    statustxt=WARNING
+    output="Unattended upgrade run not found"
+else
+    status=0
+    statustxt=OK
+fi
+echo "$status Unattended_Upgrades - $statustxt - $output"
