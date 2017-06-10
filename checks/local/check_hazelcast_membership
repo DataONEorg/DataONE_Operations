@@ -1,0 +1,38 @@
+#!/bin/bash
+# Check script for hazelcast membership via the hazelcast REST interface
+
+APPNAME=$(basename "${0}")
+TMPDIR="/tmp"
+tmpfile="${TMPDIR}/${APPNAME}.$$.txt"
+CLUSTERS="5701 5702 5703"
+
+#expected number of members = number of ip addresses listed in cn.iplist
+NMEM=$(cat /etc/dataone/node.properties | grep "cn.iplist" | cut -d'=' -f2  | wc -w)
+NCRITICAL=$[NMEM - 1]
+NWARN=$[NMEM + 1]
+
+#Endpoint for hazelcast rest service cluster info
+URI="/hazelcast/rest/cluster"
+for PORT in ${CLUSTERS}; do
+  URL="http://localhost:${PORT}${URI}"
+  curl -s $URL > ${tmpfile}
+  NHOSTS=$(grep "Member" ${tmpfile} | wc -l)
+  #trim any whitespace at start
+  NHOSTS="${NHOSTS#"${NHOSTS%%[![:space:]]*}"}"
+  CONNECTIONS=$(grep "^ConnectionCount:" ${tmpfile} | cut -d':' -f2)
+  ALLCONNECTIONS=$(grep "^AllConnectionCount:" ${tmpfile} | cut -d':' -f2)
+  #echo ${CONNECTIONS}
+  #echo ${ALLCONNECTIONS}
+  if [ ${NHOSTS} -lt ${NMEM} ]; then
+    status=2
+    statustxt="CRITICAL"
+  elif [ ${NHOSTS} -gt ${NMEM} ]; then
+    status=1
+    statustxt="WARNING"
+  else
+    status=0
+    statustxt="OK"
+  fi
+  echo "${status} Hazelcast_${PORT} members=${NHOSTS};${NWARN};0:${NCRITICAL};${NMEM};${NMEM} ${statustxt}"
+done
+rm ${tmpfile}
