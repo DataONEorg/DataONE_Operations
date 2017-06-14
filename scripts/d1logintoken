@@ -1,0 +1,111 @@
+#!/usr/bin/env python
+'''
+Login to DataONE using ORCID and retrieve token.
+
+This script uses Selenium to control a Chrome web browser to log on to
+DataONE using ORCID credentials.
+
+Dependencies:
+
+* Keyring: pip install keyring
+* Selenium: pip install selenium
+* ChromeDriver: https://chromedriver.storage.googleapis.com/index.html
+
+Example, log in to the stage environment:
+
+  login-to-dataone stage
+
+'''
+
+import sys
+import logging
+import argparse
+import getpass
+import time
+import keyring
+from selenium import webdriver
+from selenium.webdriver.common.keys import Keys
+
+KEYRING_NAME = "ORCID-personal"
+SERVER = "cn-stage.test.dataone.org"
+ENVIRONMENTS = {"production": "cn.dataone.org",
+                "stage": "cn-stage.test.dataone.org",
+                "stage2": "cn-stage-2.test.dataone.org",
+                "sandbox": "cn-sandbox.test.dataone.org",
+                "sandbox2": "cn-sandbox-2.test.dataone.org",
+                "dev": "cn-dev.test.dataone.org",
+                "dev2": "cn-dev-2.test.dataone.org",
+                }
+
+
+
+def saveOrcidCredentials(orcid, passwd):
+  '''Store ORCID and password to keystore
+
+  On OS X this creates two entries in the default keychain under the name 
+  "ORCID-personal". One entry uses the account name of "ID" to store the
+  ORCID value as the password in a well-known location. The second saves
+  the ORCID as a regular entry with account as ORCID and password.
+  '''
+  logging.info("Saving ORCID credentials for {0}".format(orcid))
+  keyring.set_password(KEYRING_NAME, "ID", orcid)
+  keyring.set_password(KEYRING_NAME, orcid, passwd)
+
+
+
+def doLoginWithOrcid(server=SERVER):
+  '''Uses selenium to control web browser to log in using ORCID creds and
+  print out the token.
+  '''
+  auth_url = "https://{0}/portal/oauth?action=start&target=https%3A%2F%2F{0}%2F/portal".format(server)
+  token_url = "https://{0}/portal/token".format(server)
+  driver = webdriver.Chrome()
+  driver.get(auth_url)
+  e = driver.find_element_by_name("userId")
+  orcid = keyring.get_password(KEYRING_NAME, "ID")
+  e.send_keys(orcid)
+  e = driver.find_element_by_name("password")
+  e.send_keys(keyring.get_password(KEYRING_NAME, orcid))
+  e = driver.find_element_by_name("authorize")
+  e.send_keys(Keys.RETURN)
+  logging.info("Pausing for 5 seconds...")
+  time.sleep(5)
+  driver.get(token_url)
+  for cookie in driver.get_cookies():
+    logging.info("  COOKIE: {0}".format(cookie))
+  e = driver.find_element_by_xpath("//html/body/pre[1]")
+  print(e.text)
+  #raw_input("\nPress Enter to continue...")
+
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description=__doc__,
+                                   formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('environment', nargs='?', default="unset",
+                      help="Environment to use ({0})".format(", ".join(ENVIRONMENTS.keys())))
+  parser.add_argument('-l', '--log_level',
+                      action='count',
+                      default=0,
+                      help='Set logging level, multiples for more detailed.')
+  parser.add_argument('-o', '--orcid', default=None,
+                      help='Set ORCID in keyring.')
+  parser.add_argument('-p', '--password', default=None,
+                      help='Set ORCID password in keyring.')
+  args = parser.parse_args()
+  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+  level = levels[min(len(levels) - 1, args.log_level)]
+  logging.basicConfig(level=level,
+                      format="%(asctime)s %(levelname)s %(message)s")
+  if args.orcid is not None:
+    password = args.password
+    if password is None:
+      password = getpass.getpass("Enter password for ORCID:")
+    saveOrcidCredentials(args.orcid, password)
+    sys.exit(0)
+
+  environment = args.environment.lower()
+  if not environment in ENVIRONMENTS.keys():
+    logging.error("Unknown environment: {0}. Expecting one of: {1}" \
+                  .format(environment, ", ".join(ENVIRONMENTS.keys())))
+    sys.exit(1)
+  doLoginWithOrcid(ENVIRONMENTS[environment])
