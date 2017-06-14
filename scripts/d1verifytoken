@@ -97,8 +97,6 @@ def decodeVerifyToken(token, certificate):
     structure represented by token
   '''
   logging.info("Decoding and verifying token...")
-  #revert any encoded parts of token
-  token = token.replace('+', '-').replace('/', '_')
   try:
     return jwt.decode(token,
                       key=certificate.public_key(),
