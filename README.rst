@@ -44,7 +44,8 @@ not then install from PyPi (``pip install dataone.libclient``) or for a locally 
 
 **Locally editable installation in a virtual environment with Conda**
 
-If you have Anaconda_ installed (highly recommended), then the following installation steps provide a setup that can be tweaked::
+If you have Anaconda_ installed (highly recommended), then the following installation steps
+provide a setup that can be tweaked::
 
   conda create -n d1tools-dev python=2.7
   source activate d1tools-dev
@@ -92,6 +93,8 @@ Output in text, json, xml is generally supported.
 * ``d1archive`` Issues a call to CNCore.archive() for a single PID.
 * ``d1indexqstat`` Retrieves counts from the index processor task queue.
 * ``d1mnadmin`` Reset synchronization time, update MN node document
+* ``d1logintoken`` Drive a webbrowser session to login to ORCID and receive a DataONE token
+* ``d1verifytoken`` Given a token, decode and verify the signature
 
 
 Code style

@@ -13,7 +13,7 @@ Dependencies:
 
 Example, log in to the stage environment:
 
-  login-to-dataone stage
+  d1logintoken stage
 
 '''
 
@@ -38,7 +38,6 @@ ENVIRONMENTS = {"production": "cn.dataone.org",
                 }
 
 
-
 def saveOrcidCredentials(orcid, passwd):
   '''Store ORCID and password to keystore
 
@@ -50,7 +49,6 @@ def saveOrcidCredentials(orcid, passwd):
   logging.info("Saving ORCID credentials for {0}".format(orcid))
   keyring.set_password(KEYRING_NAME, "ID", orcid)
   keyring.set_password(KEYRING_NAME, orcid, passwd)
-
 
 
 def doLoginWithOrcid(server=SERVER):
