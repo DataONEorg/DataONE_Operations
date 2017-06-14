@@ -1,0 +1,135 @@
+'''
+Verify a DataONE bearer token
+
+
+Given a token, decode the token and verify the token signature with a 
+certificate retrieved from the coordinating node. Output is a JSON dict.
+e.g.
+
+$ TOKEN="SOME TOKEN VALUE"
+$ d1verifytoken ${TOKEN}
+
+{
+    "token_info": {
+        "sub": "http://orcid.org/0000-0002-6513-4996",
+        "userId": "http://orcid.org/0000-0002-6513-4996",
+        "consumerKey": "theconsumerkey",
+        "exp": 1497513399,
+        "ttl": 64800,
+        "issuedAt": "2017-06-14T13:56:39.841+00:00",
+        "iat": 1497448599,
+        "fullName": "David Vieglais"
+    },
+    "certificate_info": {
+        "not_valid_after": "2017-08-15T12:29:00",
+        "subject": "cn.dataone.org",
+        "alternative_names": [
+            "cn-orc-1.dataone.org",
+            "cn-ucsb-1.dataone.org",
+            "cn-unm-1.dataone.org",
+            "cn.dataone.org"
+        ],
+        "not_valid_before": "2017-05-17T12:29:00",
+        "issuer": "Let's Encrypt Authority X3"
+    }
+}
+'''
+
+# Stdlib
+import logging
+import socket
+import ssl
+import argparse
+import json
+
+# 3rd party
+import cryptography.hazmat.backends
+import cryptography.x509
+import jwt
+
+DATAONE_ROOT = 'cn.dataone.org'
+
+
+def getDecodedCert(host=DATAONE_ROOT, ssl_port=443):
+  logging.info("Retrieving certificate from %s...", host)
+  sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+  sock.settimeout( 10.0 )
+  ssl_socket = ssl.SSLSocket(sock)
+  ssl_socket.connect((host, ssl_port))
+  cert = ssl_socket.getpeercert(binary_form=True)
+  return cryptography.x509.load_der_x509_certificate(
+    cert,
+    cryptography.hazmat.backends.default_backend(),
+    )
+
+
+def getCertificateInfo(certificate):
+
+  def getNames(entry, oid=cryptography.x509.NameOID.COMMON_NAME):
+    values = entry.get_attributes_for_oid(oid)
+    res = []
+    for v in values:
+      res.append(v.value)
+    return ", ".join(res)
+
+  res = {}
+  res['issuer'] = getNames(certificate.issuer)
+  res['subject'] = getNames(certificate.subject)
+  res['not_valid_before'] = certificate.not_valid_before.isoformat()
+  res['not_valid_after'] = certificate.not_valid_after.isoformat()
+  altnames = certificate.extensions.get_extension_for_oid(cryptography.x509.ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
+  res['alternative_names'] = altnames.value.get_values_for_type(cryptography.x509.DNSName)
+  return res
+
+
+
+def decodeVerifyToken(token, certificate):
+  '''
+  Decode and verify token returning contents
+  
+  Args:
+    token: DataONE bearer token 
+    certificate: Certificate from server that signed token
+
+  Returns:
+    structure represented by token
+  '''
+  logging.info("Decoding and verifying token...")
+  #revert any encoded parts of token
+  token = token.replace('+', '-').replace('/', '_')
+  try:
+    return jwt.decode(token,
+                      key=certificate.public_key(),
+                      algorithms=['RS256'] )
+  except jwt.InvalidTokenError as e:
+    logging.error("Token failed to validate. error=%s", e.message)
+  return None
+
+
+
+if __name__ == "__main__":
+  parser=argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('token', nargs='?', default=None,
+                      help="Bearer token to examine")
+  parser.add_argument('-l', '--log_level',
+                        action='count',
+                        default=1,
+                        help='Set logging level, multiples for more detailed.')
+  parser.add_argument('-H','--host', default=DATAONE_ROOT,
+                      help='Server providing certificate ({0})'.format(DATAONE_ROOT))
+  args = parser.parse_args()
+  levels = [logging.WARNING, logging.INFO, logging.DEBUG]
+  level = levels[min(len(levels) - 1, args.log_level)]
+  logging.basicConfig(level=level,
+                      format="%(asctime)s %(levelname)s %(message)s")
+  output = {}
+  certificate = getDecodedCert(args.host)
+  output['certificate_info'] = getCertificateInfo( certificate)
+  if not args.token is None:
+    output['token_info'] = decodeVerifyToken(args.token, certificate)
+  else:
+    logging.warn("No token provided")
+  print( json.dumps(output, indent=4) )
+
+
