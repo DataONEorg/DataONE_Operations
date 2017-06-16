@@ -28,7 +28,7 @@ entry=( $(tail -1 ${SOURCE}) )
 if [ "${entry[0]}" == "Failed" ]; then
  exit 0
 fi
-ientry[0]=$(ftoi ${entry[0]})
+ientry[0]=${entry[0]}
 ientry[1]=$(ftoi ${entry[1]})
 ientry[2]=$(ftoi ${entry[2]})
 ientry[3]=$(ftoi ${entry[3]})
