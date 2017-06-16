@@ -1,0 +1,8 @@
+# /etc/cron.d/run-speedcheck
+# Cron task to generate the speedcheck output that is reported by check_mk_agent
+# Drop this into /etc/cron.d
+# Don't forget to setup log rotate and the check_mk_agent local/check_internet_speed
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+7,37 * * * * /usr/local/bin/speedtest-cli -q --logger 2> /dev/null >> /var/log/speedcheck.log
