@@ -1,0 +1,70 @@
+#!/bin/bash
+#
+# check-mk-agent plugin to parse log from speedcheck.py and emit
+# metrics for check-mk-agent
+# Make sure /var/log/speedcheck.log is being generated with speedcheck.py
+# and install this script under /usr/lib/check_mk_agent/local
+#
+PING_CRIT=500
+PING_WARN=100
+DOWN_CRIT=5
+DOWN_WARN=15
+UP_CRIT=5
+UP_WARN=15
+SOURCE=/var/log/speedcheck.log
+
+ftoi() {
+  printf "%.0f\n" "$@"
+}
+
+#0         1       2        3
+#timestamp latency download upload
+#unix      ms      MBit/s   MBit/s
+entry=( $(tail -1 ${SOURCE}) )
+# Sometimes the test can't get a list of servers
+# The entry says:
+#   Failed to retrieve list of speedtest.net servers
+#
+if [ "${entry[0]}" == "Failed" ]; then
+ exit 0
+fi
+ientry[0]=$(ftoi ${entry[0]})
+ientry[1]=$(ftoi ${entry[1]})
+ientry[2]=$(ftoi ${entry[2]})
+ientry[3]=$(ftoi ${entry[3]})
+
+if [ ${ientry[1]} -lt ${PING_WARN} ] ; then
+  stat=0
+  stext="OK"
+elif [ ${ientry[1]} -lt ${PING_CRIT} ] ; then
+  stat=1
+  stext="WARN"
+else
+  stat=2
+  stext="CRIT"
+fi
+echo "${stat} WAN_latency latency=${entry[1]};${PING_WARN};${PING_CRIT} ${stext} - ping ${entry[1]} ms"
+
+if [ ${ientry[2]} -lt ${DOWN_CRIT} ] ; then
+  stat=2
+  stext="CRIT"
+elif [ ${ientry[2]} -lt ${DOWN_WARN} ] ; then
+  stat=1
+  stext="WARN"
+else
+  stat=0
+  stext="OK"
+fi
+echo "${stat} WAN_download speed=${entry[2]};${DOWN_WARN};${DOWN_CRIT} ${stext} - download ${entry[2]} MBit/s"
+
+if [ ${ientry[3]} -lt ${UP_CRIT} ] ; then
+  stat=2
+  stext="CRIT"
+elif [ ${ientry[3]} -lt ${UP_WARN} ] ; then
+  stat=1
+  stext="WARN"
+else
+  stat=0
+  stext="OK"
+fi
+echo "${stat} WAN_upload speed=${entry[3]};${UP_WARN};${UP_CRIT} ${stext} - upload ${entry[3]} MBit/s"
