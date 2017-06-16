@@ -1497,8 +1497,8 @@ def shell():
     elif args.logger:
         essentials = ( results.timestamp,
                        results.ping,
-                       results.download,
-                       results.upload )
+                       results.download / 1000.0 / 1000.0,
+                       results.upload / 1000.0 / 1000.0 )
         print "{0} {1} {2} {3}".format(*essentials)
 
 
