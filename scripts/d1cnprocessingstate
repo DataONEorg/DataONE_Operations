@@ -7,9 +7,12 @@ import logging
 import argparse
 import d1_admin_tools
 import os
+import keyring
 from getpass import getpass
 from fabric.api import run, sudo, execute, hide
 from fabric.context_managers import env, settings
+
+DATAONE_ACCOUNT_KEY = "dataone.org-sudo"
 
 PROCESSING_PROPERTIES = {'synchronization': {'file': 'synchronization.properties',
                                              'prop': 'Synchronization\\.active'
@@ -21,6 +24,25 @@ PROCESSING_PROPERTIES = {'synchronization': {'file': 'synchronization.properties
                                             'prop':'LogAggregator\\.active'
                                             }
                          }
+
+def setDataONESudo(user, pswd):
+  '''Store sudo account and password to keystore
+
+  On OS X this creates two entries in the default keychain under the name 
+  "dataone.org-sudo". One entry uses the account name of "ID" to store the
+  username value as the password in a well-known location. The second saves
+  the username as a regular entry with account as username and password.
+  '''
+  logging.info("Saving DataONE sudo credentials for {0}".format(user))
+  keyring.set_password(DATAONE_ACCOUNT_KEY, "ID", user)
+  keyring.set_password(DATAONE_ACCOUNT_KEY, user, pswd)
+
+
+def getDataONESudo():
+  user = keyring.get_password(DATAONE_ACCOUNT_KEY, "ID")
+  pswd = keyring.get_password(DATAONE_ACCOUNT_KEY, user)
+  return (user, pswd)
+
 
 def getProcessingServiceState(service):
   '''
@@ -127,9 +149,15 @@ def main():
       print("Error: value for set_state must be TRUE or FALSE only, not {0}.".format(args.set_state))
       return 1
     logging.info("Setting state for processing services on %s to %s", host, args.set_state)
-    prompt = "Password for operation that requires sudo: "
-    password = getpass(prompt)
-    env.password = password
+    usrpass = getDataONESudo()
+    if usrpass[1] is None:
+      usrname = getpass("Username for sudo operation:")
+      prompt = "Password for operation that requires sudo: "
+      password = getpass(prompt)
+      setDataONESudo(usrname, password)
+      env.password = password
+    else:
+      env.password = usrpass[1]
     execute(setProcessingServicesEnabled, args.set_state, host=host)
   with settings(
       hide('warnings', 'running', 'stdout', 'stderr'),
