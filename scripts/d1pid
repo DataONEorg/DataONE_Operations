@@ -10,8 +10,12 @@ This script provides information about an object in DataONE including:
 - the type and size of object
 - revision chain of object
 
+Example:
+  
+   d1pid -l -f json  00010115-8c1f-4813-abc0-f63acf23111d
+
+
 #TODO:
-  - indexer view
   - number of downloads
   - access permissions
   - related content
@@ -425,7 +429,7 @@ class D1PIDDescribe(object):
          'fl': '*',
          'wt': 'json',
          }
-    response = client.queryResponse(query_engine, "/", **q)
+    response = client.queryResponse(query_engine, "/", query=q)
     self.data['index']['status'] = response.status_code
     content = json.loads(response.content)
     self.data['index']['o'] = content['response']
