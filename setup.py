@@ -18,7 +18,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.11.0',
+    version='0.12.0',
 
     description='Utilities for administrative operations in DataONE',
     long_description=long_description,
@@ -105,7 +105,7 @@ setup(
              'scripts/d1cnprocessingstate',
              'scripts/d1mnadmin',
              'scripts/d1nodeprops',
-             'scripts/d1pidinfo',
+             'scripts/d1pid',
              'scripts/d1verifytoken',
              'scripts/d1logintoken',
              ],
