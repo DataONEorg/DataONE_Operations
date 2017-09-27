@@ -50,16 +50,42 @@ select TIMESTAMP 'epoch' + datesysmetamodified * INTERVAL '1 millisecond' as SMD
 
 select A.pid, A.N from (select pid, ROW_NUMBER() OVER() as N from index_task where status='NEW' order by taskmodifieddate) A where A.pid='e2d409da-a08c-4391-a2a6-59764b80548b'
 
-SELECT to_timestamp(A.dsm/1000) as dsm, to_timestamp(A.tmd/1000) as tmd,
-A.priority, A.node, A.pid, A.trycount, A.qpos, A.qpos1
-FROM (SELECT datesysmetamodified AS dsm, taskmodifieddate AS tmd, priority, pid, trycount, status,
-row_number() over (order by priority ASC, datesysmetamodified ASC) as qpos,
-row_number() over (order by priority ASC, taskmodifieddate ASC) as qpos1,
-(xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node
-FROM index_task WHERE status='IN PROCESS') A order by qpos1 desc;
+SELECT to_timestamp(datesysmetamodified/1000) as dsm, 
+       to_timestamp(taskmodifieddate/1000) as tmd,
+       priority, 
+       (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node, 
+       pid, 
+       trycount, 
+       status, 
+FROM index_task WHERE pid='{0}'.format(pid);
 
 
 '''
+
+def getPIDQInfo(pid, dest_file, tmp_file=None):
+  logger = logging.getLogger("main")
+  if tmp_file is None:
+    tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
+  # TODO: Escape pid !!!
+  SQL = """SELECT to_timestamp(datesysmetamodified/1000) as dsm, 
+        to_timestamp(taskmodifieddate/1000) as tmd,
+        to_timestamp(nextexecution/1000) as nex,
+        priority, 
+        (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node, 
+        pid, 
+        trycount, 
+        status
+       FROM index_task WHERE pid='{0}';""".format(pid)
+
+  cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + QUEUE_DATABASE
+  cmd += " -P pager=off --single-transaction"
+  cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
+  logger.info("PSQL Command = %s", cmd)
+  run(cmd)
+  get(tmp_file, dest_file)
+  run("rm " + tmp_file)
+
+
 
 def getPIDQPos(pid, dest_file, qstat='IN PROCESS', tmp_file=None):
   logger = logging.getLogger("main")
@@ -172,7 +198,7 @@ def main():
   args, config = d1_admin_tools.defaultScriptMain(parser, with_config=False, with_environment=False, with_format=False)
   dst_file = operations.tmpFileName("/tmp", prefix="qcount", ext='txt')
   if args.pidqpos is not None:
-    execute(getPIDQPos, args.pidqpos, dst_file, host=args.host)
+    execute(getPIDQInfo, args.pidqpos, dst_file, host=args.host)
     with open(dst_file, 'r') as src:
       print((src.read()))
     return 0
