@@ -21,14 +21,14 @@ from fabric.api import run, sudo, execute, hide
 
 
 def updateNode(host, certificate, nodeid, nodedoc):
-  nodexml = u""
+  nodexml = ""
   with codecs.open(nodedoc,'r',encoding='UTF-8') as fxml:
     nodexml = fxml.read()
   logging.debug("Node Document XML = %s", nodexml)
   node = d1_common.types.dataoneTypes_v2_0.CreateFromDocument(nodexml)
   if node.nodeId != nodeid:
     logging.error("NodeId mismatch: %s specified but %s provided in node document", nodeid, node.nodeId)
-    raise(ValueError("Provided NodeID does not match nodeId in node xml document. Aborting."))
+    raise ValueError
   return ''
   client = cnclient_2_0.CoordinatingNodeClient_2_0(host,
                                                    api_major=2,
@@ -94,11 +94,11 @@ def main():
     logger.warn("Resetting last synchronization time to %s for %s in the %s environment", ldap_tstamp, args.node_id, args.environment.upper())
     confirm = True
     if not args.quiet:
-      confirm = raw_input("Proceed (yes/no)? ")
+      confirm = input("Proceed (yes/no)? ")
       if confirm == "yes":
         confirm = True
       else:
-        print "You entered '{0}'. Aborting.".format(confirm)
+        print("You entered '{0}'. Aborting.".format(confirm))
         confirm = False
     if confirm:
       ldap_password = args.ldap_password
@@ -119,7 +119,7 @@ def main():
       return 1
     logger.info("Setting approve state for %s to %s", args.node_id, approve_flag)
     #TODO: implement
-    raise(NotImplementedError("Setting approve state"))
+    raise NotImplementedError
     return 0
   if args.synchronize is not None:
     sync_flag = args.synchronize
@@ -129,11 +129,11 @@ def main():
     logger.warn("Setting synchronize state for %s to %s", args.node_id, sync_flag)
     confirm = True
     if not args.quiet:
-      confirm = raw_input("Proceed (yes/no)? ")
+      confirm = input("Proceed (yes/no)? ")
       if confirm == "yes":
         confirm = True
       else:
-        print "You entered '{0}'. Aborting.".format(confirm)
+        print("You entered '{0}'. Aborting.".format(confirm))
         confirm = False
     if confirm:
       ldap_password = args.ldap_password
@@ -152,7 +152,7 @@ def main():
       return 1
     base_url = host = config.envPrimaryBaseURL(args.environment)
     res = updateNode(base_url, args.certificate, args.node_id, args.nodedoc)
-    print(str(res))
+    print((str(res)))
 
   return 0
 

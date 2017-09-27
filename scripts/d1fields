@@ -71,17 +71,17 @@ def main():
     format = 'text'
     logger.warn("Unknown output format requested, using %s", format)
   if format == 'xml':
-    print results['xml']
+    print(results['xml'])
     return 0
   if format == 'json':
     import json
     results.pop('xml', None)
-    print json.dumps(results, encoding='utf-8', indent=2)
+    print(json.dumps(results, encoding='utf-8', indent=2))
     return 0
   if format == 'yaml':
     import yaml
     results.pop('xml', None)
-    print yaml.safe_dump(results, encoding='utf-8')
+    print(yaml.safe_dump(results, encoding='utf-8'))
     return 0
   rows, columns = os.popen('stty size', 'r').read().split()
   line_width = int(columns)
@@ -90,9 +90,9 @@ def main():
   if args.descriptions:
     line += " Description"
     line += " "* (line_width-len(line))
-  print("-"*len(line))
+  print(("-"*len(line)))
   print(line)
-  print("-"*len(line))
+  print(("-"*len(line)))
   for row in results['fields']:
     line = "{name:<27}{type:<18}{searchable:<3}{multivalued:<3}".format(**row)
     if args.descriptions:
@@ -101,7 +101,7 @@ def main():
                             subsequent_indent=' '*len(line),
                             drop_whitespace=True,
                             replace_whitespace=True)
-      print( line + descr.lstrip())
+      print(( line + descr.lstrip()))
     else:
       print(line)
   return 0

@@ -21,8 +21,7 @@ def doListNodes(config, env, node_type='all'):
   replicate="false" synchronize="false" type="cn" state="up"
   '''
   logger = logging.getLogger('main')
-  client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env),
-                                                   api_major=2)
+  client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env))
   nodes_response = client.listNodesResponse()
   nodes = client._read_dataone_type_response(nodes_response, 'NodeList')
   result = {'xml': nodes_response.content,
@@ -55,7 +54,7 @@ def doListNodes(config, env, node_type='all'):
                          'sec': sched.sec,
                          'wday': sched.wday,
                          'year': sched.year}
-      row['schedule_text'] = " ".join(map(lambda i:i[1],row['schedule'].items()))
+      row['schedule_text'] = " ".join([i[1] for i in list(row['schedule'].items())])
     for s in node.subject:
       row['subject'].append(s.value())
     for s in node.contactSubject:
@@ -81,7 +80,7 @@ def renderTextResults(data, fields):
   for f in fields:
     fmtstr += "{" + f + ":<" + str(flen[f]+1) + "}"
   for row in data:
-    print(fmtstr.format(**row))
+    print((fmtstr.format(**row)))
 
 
 # synchronize="false" type="cn" state="up"
@@ -124,20 +123,20 @@ def main():
   if format == 'json':
     import json
     if summary is not None:
-      print json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)
+      print(json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
       return 0
-    print json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING)
+    print(json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
     return 0
   if format == 'yaml':
     import yaml
     if summary is not None:
-      print(yaml.safe_dump(summary, encoding=d1_admin_tools.d1_config.ENCODING))
+      print((yaml.safe_dump(summary, encoding=d1_admin_tools.d1_config.ENCODING)))
       return 0
-    print(yaml.safe_dump(results['items'], encoding=d1_admin_tools.d1_config.ENCODING))
+    print((yaml.safe_dump(results['items'], encoding=d1_admin_tools.d1_config.ENCODING)))
   if format == 'xml':
     import xml.dom.minidom
     dom = xml.dom.minidom.parseString(results['xml'])
-    print dom.toprettyxml(indent=' '*2)
+    print(dom.toprettyxml(indent=' '*2))
     return 0
   #text or anything else
   if not summary is None:

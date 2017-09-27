@@ -232,9 +232,9 @@ def setNodesProperties(con, nodes_properties):
       }
   Call createOrUpdateNodeProperty for each entry.
   '''
-  for node_id in nodes_properties.keys():
+  for node_id in list(nodes_properties.keys()):
     properties = nodes_properties[node_id]
-    for key in properties.keys():
+    for key in list(properties.keys()):
       logging.info("%s set prop %s to %s", node_id, key, str(properties[key]))
       createOrUpdateNodeProperty(con, node_id, key, properties[key])
 
@@ -251,16 +251,16 @@ Make sure you have an LDAP connection on port 3890 by doing something like:
   ''')
   passwd = getpass.getpass("What's the LDAP password: ")
   con = getLDAPConnection(password=passwd)
-  print( yaml.dump(listAllNodeProperties(con), default_flow_style=False, explicit_start=True) )
+  print(( yaml.dump(listAllNodeProperties(con), default_flow_style=False, explicit_start=True) ))
   sys.exit(0)
   
-  node_id = raw_input("Node ID: ")
+  node_id = input("Node ID: ")
   res = readNodeProperty(con, node_id, "*")
   dn = node_id
   if len(res) > 0:
     dn = res[0][0]
   print("----")
-  print("Properties set on {0}:".format(dn))
-  print("  {0:15}  {1} ".format("Key","Value"))
+  print(("Properties set on {0}:".format(dn)))
+  print(("  {0:15}  {1} ".format("Key","Value")))
   for entry in res:
-    print("  {0:15}  {1}".format(entry[2], entry[3]))
+    print(("  {0:15}  {1}".format(entry[2], entry[3])))

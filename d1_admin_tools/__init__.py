@@ -7,7 +7,7 @@ import logging
 import logging.handlers
 import atexit
 import datetime
-import d1_config
+from . import d1_config
 from pytz import timezone
 
 #dateparser has some code that needs to be updated

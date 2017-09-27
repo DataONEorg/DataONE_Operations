@@ -96,8 +96,7 @@ def main():
     return 1
   base_url = args.base_url
   if base_url is None:
-    if args.node_id is None:
-      node_id = config.envPrimaryNodeId(args.environment)
+    node_id = config.envPrimaryNodeId(args.environment)
   logger.info("Base URL = %s", base_url)
   n_retrieved = 0
   date_start = None
@@ -127,10 +126,11 @@ def main():
     client = env_nodes.getClient(node_id)
 
   current_time = datetime.now(pytz.utc)
+  start_index = args.start_index
   while n_retrieved < max_to_retrieve:
     res = None
     kwparams = {'count':args.page_size,
-                'start': args.start_index,
+                'start': start_index,
                 'fromDate': date_start,
                 'toDate': date_end}
     if args.node_id is not None:
@@ -151,7 +151,7 @@ def main():
     logger.info("Retrieved: %d", n_retrieved)
     start_index = res.content.start + res.content.count
     if args.format == 'xml':
-      print res.asXML()
+      print((res.asXML()))
     else:
       for entry in res.content.objectInfo:
         data = {'counter': counter,
@@ -161,17 +161,17 @@ def main():
                 'pid': entry.identifier.value().strip(),
                 'format_id':entry.formatId}
         if args.only_identifiers:
-          print(u"{pid}".format(**data))
+          print(("{pid}".format(**data)))
         else:
-          row = [u"{counter:0>6}:".format(**data), ]
-          row.append( u"{size:>11} ".format(**data) )
+          row = ["{counter:0>6}:".format(**data), ]
+          row.append( "{size:>11} ".format(**data) )
           if args.relative:
-            row.append( u"{tdelta:8.2f} ".format(**data) )
+            row.append( "{tdelta:8.2f} ".format(**data) )
           else:
-            row.append( u"{date_modified:<21}".format(**data) )
-          row.append( u"{format_id:<45}".format(**data) )
-          row.append( u"{pid}".format(**data) )
-          print( u" ".join(row) )
+            row.append( "{date_modified:<21}".format(**data) )
+          row.append( "{format_id:<45}".format(**data) )
+          row.append( "{pid}".format(**data) )
+          print(( " ".join(row) ))
         counter += 1
   return 0
 

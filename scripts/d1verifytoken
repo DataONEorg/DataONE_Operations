@@ -130,6 +130,6 @@ if __name__ == "__main__":
     output['token_info'] = decodeVerifyToken(args.token, certificate)
   else:
     logging.warn("No token provided")
-  print( json.dumps(output, indent=4) )
+  print(( json.dumps(output, indent=4) ))
 
 

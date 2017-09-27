@@ -92,10 +92,10 @@ class Node(object):
         cls = mnclient_2_0.MemberNodeClient_2_0
       else:
         cls = mnclient_1_1.MemberNodeClient_1_1
-    if not kwargs.has_key('allow_redirects'):
+    if 'allow_redirects' not in kwargs:
       kwargs['allow_redirects'] = False
     hsh = hashlib.sha256()
-    hsh.update( unicode(kwargs) )
+    hsh.update( str(kwargs).encode('utf-8') )
     kw_hash = hsh.hexdigest()
     self._L.debug("Existing hash = %s", self.kw_hash)
     self._L.debug("New hash = %s", kw_hash)
@@ -139,7 +139,7 @@ class Nodes(object):
 
 
   def __unicode__(self):
-    return u"\n".join(self.nodes.keys())
+    return "\n".join(list(self.nodes.keys()))
 
 
   def getNode(self, node_id=None):
@@ -151,7 +151,7 @@ class Nodes(object):
     :param node_id: NodeId of the node to retrieve, or None for the primary node.
     :return: instance of Node or None
     '''
-    if len(self.nodes.keys()) < 1:
+    if len(list(self.nodes.keys())) < 1:
       self.load()
     if node_id is None:
       node_id = self.primary_node_id
@@ -189,6 +189,7 @@ class Nodes(object):
 
     :return: nothing
     '''
+    self._L.debug("Loading node list from %s", self.base_url)
     client = cnclient_2_0.CoordinatingNodeClient_2_0(self.base_url, allow_redirects=False, **kwargs)
     nodes = client.listNodes()
     self.nodes = {}
@@ -196,14 +197,30 @@ class Nodes(object):
       anode = Node(node)
       node_id = node.identifier.value()
       self.nodes[node_id] = anode
-      if anode.getBaseURL() == self.base_url:
+      self._L.debug("Node baseURL = %s", anode.getBaseURL())
+      if anode.getBaseURL().lower().strip() == self.base_url.lower().strip():
+        self._L.debug("Setting primary node to: %s", node_id)
         self.primary_node_id = node_id
         anode._client = client
-        if not kwargs.has_key('allow_redirects'):
+        if 'allow_redirects' not in kwargs:
           kwargs['allow_redirects'] = False
         hsh = hashlib.sha256()
-        hsh.update(unicode(kwargs))
+        hsh.update(str(kwargs).encode('utf-8'))
         anode.kw_hash = hsh.hexdigest()
+    if self.primary_node_id is None:
+      # uhoh, something is borked in the node list, probably sandbox2
+      # manually set the primary node id by guessing from the supplied url
+      uparts = self.base_url.lower().strip().split("/")
+      hostname = uparts[2]
+      abcd = hostname.split(".")
+      if abcd[1] == 'dataone':
+        self.primary_node_id = "urn:node:CN"
+        return
+      a123 = abcd[0].split("-")
+      if a123[1] == 'dev':
+        if len(a123) > 3:
+          if a123[3] == '2':
+            self.primary_node_id = "urn:node:CN"
 
 
 #==============================
@@ -211,4 +228,4 @@ class Nodes(object):
 if __name__ == "__main__":
   nodes = Nodes("https://cn.dataone.org/cn")
   nodes.load()
-  print(unicode(nodes))
+  print((str(nodes)))

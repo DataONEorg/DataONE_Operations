@@ -110,11 +110,11 @@ def toMdTable(header, matrix, widths=None):
   if widths is None:
     widths = []
     for x in header:
-      widths.append(u"-"*len(x))
-  res = u"| " + u" | ".join(map(unicode, header)) + u" |\n"
-  res += u"| " + u" | ".join(widths) + u" |\n"
+      widths.append("-"*len(x))
+  res = "| " + " | ".join(map(str, header)) + " |\n"
+  res += "| " + " | ".join(widths) + " |\n"
   for row in matrix:
-    line = u"| " + u" | ".join(map(unicode, row)) + u" |\n"
+    line = "| " + " | ".join(map(str, row)) + " |\n"
     res += line
   return res
 
@@ -199,7 +199,7 @@ class CNodeComparison(object):
     cur = dbc.cursor()
     cur.execute("SELECT v FROM metadata WHERE k=?", [k])
     v = cur.fetchone()
-    self._L.debug(unicode(v))
+    self._L.debug(str(v))
     try:
       return json.loads(v[0])
     except TypeError as e:
@@ -218,7 +218,7 @@ class CNodeComparison(object):
 
 
   def setMetadata(self, k, v):
-    self._L.debug("set metadata %s : %s", k, unicode(v))
+    self._L.debug("set metadata %s : %s", k, str(v))
     dbc = self.getDatabaseConnection()
     cur = dbc.cursor()
     v_encoded = json.dumps(v, encoding='utf-8')
@@ -272,7 +272,7 @@ class CNodeComparison(object):
       logger.info("Adding document list for %s to database...", host)
       with open( os.path.join(self.dest_folder, dest_file), 'r') as infile:
         for row in infile.readlines(): 
-          cur.execute(u"INSERT INTO files VALUES (?, ?)", 
+          cur.execute("INSERT INTO files VALUES (?, ?)", 
                       [ host, toUnicode(row.strip()) ] )
       dbc.commit()
 
@@ -350,9 +350,9 @@ class CNodeComparison(object):
       with open( os.path.join(self.dest_folder, dest_file) ) as id_file:
         idreader = csv.reader(id_file)
         for row in idreader:
-          urow =[host, ] + map( toUnicode, row)
-          urow[4] = urow[2]+u'.'+unicode(urow[3])
-          cur.execute(u"INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);",
+          urow =[host, ] + list(map( toUnicode, row))
+          urow[4] = urow[2]+'.'+str(urow[3])
+          cur.execute("INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);",
               urow)    
       dbc.commit()
 
@@ -479,13 +479,13 @@ class CNodeComparison(object):
       return header, matrix
       
     hosts = self.getMetadata('hosts')
-    hostnames = map(shrinkHostName, hosts)
+    hostnames = list(map(shrinkHostName, hosts))
     data = self.readJsonFile(DOCID_ANALYSIS)
     header, matrix = dataToTable(hostnames, data)
-    print( toMdTable(header, matrix))
+    print(( toMdTable(header, matrix)))
     data = self.readJsonFile(PID_ANALYSIS)
     header, matrix = dataToTable(hostnames, data)
-    print( toMdTable(header, matrix))
+    print(( toMdTable(header, matrix)))
 
 
 ##==============================================================================

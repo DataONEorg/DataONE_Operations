@@ -7,9 +7,48 @@ import sys
 import logging
 import argparse
 import d1_admin_tools
-from d1_admin_tools import operations
+#from d1_admin_tools import operations
 import pprint
 from d1_client import cnclient_2_0
+
+#========================
+#== DataONE Operations ==
+
+
+def resolve(client, pid):
+  ''' Resolve the provided identifier in the specified environment
+
+  :param client: An instance of CoordinatingNodeClient
+  :param pid: Identifier to resolve
+  :return: Dictionary mimicking an objectLocationList with addition of error entry
+  '''
+  logger = logging.getLogger('main')
+  response = {'status':{},
+              'xml': None,
+              }
+  try:
+    res = client.resolveResponse(pid)
+    obj_locs = client._read_dataone_type_response(
+      res, 'ObjectLocationList', response_is_303_redirect=True
+    )
+    response['status']['msg'] = 'OK'
+    response['status']['code'] = res.status_code
+    response['xml'] = res.content #dom.toprettyxml(indent="  ")
+    response['identifier'] = str(obj_locs.identifier.value())
+    response['id_is_sid'] = not (pid == response['identifier'])
+    response['objectLocation'] = []
+    for loc in obj_locs.objectLocation:
+      oloc = {'url': str(loc.url),
+              'nodeIdentifier': str(loc.nodeIdentifier.value()),
+              'baseURL': str(loc.baseURL),
+              'version': list(map(str, loc.version)),
+              'preference': str(loc.preference) }
+      response['objectLocation'].append(oloc)
+  except Exception as e:
+    logger.info(e)
+    response['status']['msg'] = str(e)
+    #response['status']['code'] = e.errorCode
+  return response
 
 
 def doResolve(pid, environments, configuration):
@@ -24,16 +63,18 @@ def doResolve(pid, environments, configuration):
   if len(environments) > 1:
     logger.warn('Checking all environments...')
   results = []
-  client = None
   for env in environments:
-    if client is None:
-      client = cnclient_2_0.CoordinatingNodeClient_2_0(configuration.envPrimaryBaseURL(env),
-                                                       api_major=2,
-                                                       allow_redirects=False)
-    else:
-      client.set_base_url(configuration.envPrimaryBaseURL(env))
+    logger.debug("Checking environment: %s", env)
+    env_nodes = configuration.envNodes(env)
+    client = env_nodes.getClient(allow_redirects=False)
+
+    #if client is None:
+    #  client = cnclient_2_0.CoordinatingNodeClient_2_0(configuration.envPrimaryBaseURL(env),
+    #                                                   allow_redirects=False)
+    #else:
+    #  client.set_base_url(configuration.envPrimaryBaseURL(env))
     logger.info("Resolving %s in %s", pid, env)
-    res = operations.resolve(client, pid)
+    res = resolve(client, pid)
     results.append({'environment': env,
                     'resolve': res,
                     })
@@ -72,11 +113,11 @@ def main():
     results = summary
     if format == 'text':
       results = "\n".join(summary)
-      print results
+      print(results)
       return 0
   if args.format == 'yaml':
     import yaml
-    print(yaml.safe_dump(results, encoding=d1_admin_tools.d1_config.ENCODING))
+    print((yaml.safe_dump(results, encoding=d1_admin_tools.d1_config.ENCODING)))
   elif args.format == 'json':
     import json
     for result in results:
@@ -84,12 +125,12 @@ def main():
         result['resolve'].pop('xml', None)
       except:
         pass
-    print(json.dumps(results, indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
+    print((json.dumps(results, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
   elif args.format == 'xml':
     import xml.dom.minidom
     for result in results:
       dom = xml.dom.minidom.parseString(result['resolve']['xml'])
-      print dom.toprettyxml(indent="  ")
+      print((dom.toprettyxml(indent="  ")))
   else:
     PP.pprint(results)
   return 0

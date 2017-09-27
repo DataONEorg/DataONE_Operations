@@ -1,11 +1,32 @@
-'''
+"""
+
 Examine the postgres index queue.
 
 Requires shell access and appropriate .pgpass setup
 
 select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node, status, deleted, formatid, count(*) as cnt
 from index_task group by node,status,deleted,formatid order by node, status;
-'''
+
+                Table "public.index_task"
+       Column        |          Type          | Modifiers
+---------------------+------------------------+-----------
+ id                  | bigint                 | not null
+ datesysmetamodified | bigint                 | not null
+ deleted             | boolean                | not null
+ formatid            | character varying(255) |
+ nextexecution       | bigint                 | not null
+ objectpath          | text                   |
+ pid                 | text                   | not null
+ priority            | integer                | not null
+ status              | character varying(255) |
+ sysmetadata         | text                   |
+ taskmodifieddate    | bigint                 | not null
+ trycount            | integer                | not null
+ version             | integer                | not null
+Indexes:
+    "index_task_pkey" PRIMARY KEY, btree (id)
+
+"""
 
 import sys
 import logging
@@ -68,20 +89,33 @@ FROM index_task WHERE status='{0}') A WHERE A.pid='{1}' '''.format(qstat, pid)
   run("rm " + tmp_file)
 
 
-def getIndexQueueStatus(dest_file, tmp_file=None, include_node=True, include_formatid=True):
+def getIndexQueueStatus(dest_file, tmp_file=None, include_node=True, include_formatid=True, include_time=False):
   logger = logging.getLogger("main")
   if tmp_file is None:
     tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
-  SQL = "SELECT status,deleted,COUNT(*) AS cnt FROM index_task GROUP BY status,deleted ORDER BY status"
+  SELECT = ["status", "deleted", "COUNT(*) AS cnt",
+            "to_timestamp(min(datesysmetamodified)/1000) as minTmod",
+            "to_timestamp(max(datesysmetamodified)/1000) as maxTmod",
+            ]
+  GROUPBY = ["status", "deleted", ]
+  ORDERBY = ["status", ]
   if include_formatid:
-    SQL = """select status, deleted, formatid, count(*) as cnt from index_task group by status,deleted,formatid order by status,formatid"""
+    SELECT.append("formatid")
+    GROUPBY.append("formatid")
+    ORDERBY.append("formatid")
+    #SQL = "select " + ",".join(SELECT) + "from index_task group by status,deleted,formatid order by status,formatid"
   if include_node:
-    if include_formatid:
-      SQL = """select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node,
- status, deleted, formatid, count(*) as cnt from index_task group by node,status,deleted,formatid order by node, status"""
-    else:
-      SQL = """select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node,
-      status, deleted, count(*) as cnt from index_task group by node,status,deleted order by node, status"""
+    SELECT.insert(0, "(xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node")
+    GROUPBY.insert(0, "node")
+    ORDERBY.insert(0, "node")
+    #if include_formatid:
+    #  SQL = """select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node,
+    #  status, deleted, formatid, count(*) as cnt from index_task group by node,status,deleted,formatid order by node, status"""
+    #else:
+    #  SQL = """select (xpath('//originMemberNode/text()', sysmetadata::xml))[1]::varchar AS node,
+    #  status, deleted, count(*) as cnt from index_task group by node,status,deleted order by node, status"""
+
+  SQL = "SELECT " + ",".join(SELECT) + " FROM index_task GROUP BY " + ",".join(GROUPBY) + " ORDER BY " + ",".join(ORDERBY)
   cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + QUEUE_DATABASE
   cmd += " -P pager=off --single-transaction"
   cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
@@ -140,7 +174,7 @@ def main():
   if args.pidqpos is not None:
     execute(getPIDQPos, args.pidqpos, dst_file, host=args.host)
     with open(dst_file, 'r') as src:
-      print(src.read())
+      print((src.read()))
     return 0
   if args.identifiers is not None:
     status = args.identifiers.upper()
@@ -152,7 +186,7 @@ def main():
   else:
     execute( getIndexQueueStatus, dst_file, include_node=args.include_node, include_formatid=args.include_formatid, host=args.host)
   with open(dst_file, 'r') as src:
-    print(src.read())
+    print((src.read()))
   return 0
 
 

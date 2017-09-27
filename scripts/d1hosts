@@ -48,12 +48,12 @@ def main():
     environments = config.environments()
     environments.sort()
     if args.format == "csv":
-      print ",".join(environments)
+      print(",".join(environments))
       return 0
     if args.format == 'json':
-      print json.dumps(environments, indent=2, encoding='utf-8')
+      print(json.dumps(environments, indent=2, encoding='utf-8'))
       sys.exit(0)
-    print "\n".join(environments)
+    print("\n".join(environments))
     return 0
   else:
     environments = [ args.environment, ]
@@ -64,12 +64,12 @@ def main():
     else:
       hosts += config.hosts(environment)
   if args.format.lower() == 'csv':
-    print ",".join(hosts)
+    print(",".join(hosts))
     return 0
   if args.format.lower() == 'json':
-    print json.dumps(hosts, encoding='utf-8')
+    print(json.dumps(hosts, encoding='utf-8'))
     return 0
-  print "\n".join(hosts)
+  print("\n".join(hosts))
   return 0
 
 if __name__ == "__main__":

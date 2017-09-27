@@ -59,12 +59,15 @@ def doLoginWithOrcid(server=SERVER):
   token_url = "https://{0}/portal/token".format(server)
   driver = webdriver.Chrome()
   driver.get(auth_url)
+  logging.debug("Looking for element 'userId'...")
   e = driver.find_element_by_name("userId")
   orcid = keyring.get_password(KEYRING_NAME, "ID")
   e.send_keys(orcid)
+  logging.debug("Looking for element 'password'...")
   e = driver.find_element_by_name("password")
   e.send_keys(keyring.get_password(KEYRING_NAME, orcid))
-  e = driver.find_element_by_name("authorize")
+  logging.debug("Looking for element 'authorize'...")
+  e = driver.find_element_by_id("form-sign-in-button")
   e.send_keys(Keys.RETURN)
   logging.info("Pausing for 5 seconds...")
   time.sleep(5)
@@ -72,7 +75,7 @@ def doLoginWithOrcid(server=SERVER):
   for cookie in driver.get_cookies():
     logging.info("  COOKIE: {0}".format(cookie))
   e = driver.find_element_by_xpath("//html/body/pre[1]")
-  print(e.text)
+  print((e.text))
   #raw_input("\nPress Enter to continue...")
 
 
@@ -80,7 +83,7 @@ if __name__ == "__main__":
   parser = argparse.ArgumentParser(description=__doc__,
                                    formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('environment', nargs='?', default="unset",
-                      help="Environment to use ({0})".format(", ".join(ENVIRONMENTS.keys())))
+                      help="Environment to use ({0})".format(", ".join(list(ENVIRONMENTS.keys()))))
   parser.add_argument('-l', '--log_level',
                       action='count',
                       default=0,
@@ -102,8 +105,8 @@ if __name__ == "__main__":
     sys.exit(0)
 
   environment = args.environment.lower()
-  if not environment in ENVIRONMENTS.keys():
+  if not environment in list(ENVIRONMENTS.keys()):
     logging.error("Unknown environment: {0}. Expecting one of: {1}" \
-                  .format(environment, ", ".join(ENVIRONMENTS.keys())))
+                  .format(environment, ", ".join(list(ENVIRONMENTS.keys()))))
     sys.exit(1)
   doLoginWithOrcid(ENVIRONMENTS[environment])

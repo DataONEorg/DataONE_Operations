@@ -16,7 +16,7 @@ from d1_client import cnclient_2_0
 
 
 def doArchive(client, pid):
-  affirmation = raw_input("Please confirm ARCHIVE (yes or no):")
+  affirmation = input("Please confirm ARCHIVE (yes or no):")
   if affirmation != 'yes':
     raise ValueError("Terminating ARCHIVE request.")
   logging.warn("ARCHIVE: %s", pid)
@@ -46,7 +46,7 @@ def main():
   logging.warn("Archiving pid: %s in %s environment.", args.pid, args.environment)
   result = doArchive(client, args.pid)
   if args.format == 'xml':
-    print(result['xml'])
+    print((result['xml']))
     return 0
   pprint.pprint(result, indent=2, encoding='utf-8')
   return 0

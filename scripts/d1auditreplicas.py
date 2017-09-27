@@ -60,7 +60,7 @@ def main():
     d1env_dict = d1_common.env.D1_ENV_DICT[args.env]
   except LookupError:
     raise AuditError(
-      u'Environment must be one of {}'.format(', '.join(D1_ENV_DICT))
+      'Environment must be one of {}'.format(', '.join(D1_ENV_DICT))
     )
 
   if args.use_v1:

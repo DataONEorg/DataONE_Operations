@@ -7,7 +7,7 @@ import logging
 import codecs
 import json
 import pprint
-import d1_nodes
+from . import d1_nodes
 
 ENCODING = 'utf-8'
 CONFIG_FOLDER = os.path.join( os.getenv("HOME"), ".dataone" )
@@ -31,7 +31,7 @@ class D1Configuration( object ):
 
     :return: list of environment names
     '''
-    return self.config['environments'].keys()
+    return list(self.config['environments'].keys())
 
 
   def environment(self, environment):

@@ -154,7 +154,7 @@ def _getPIDdocID(pid, pg_readonly="dataone_readonly"):
 def getPIDdocID( pid ):
     res = _getPIDdocID(pid )
     #print "pid:{pid}\ndocid:{docid}".format(**res)
-    print yaml.dump(res, explicit_start=True)
+    print(yaml.dump(res, explicit_start=True))
 
 
 def _confirmDocID(docid):
@@ -185,7 +185,7 @@ def _confirmDocID(docid):
 
 def confirmDocID(docid):
     res = _confirmDocID(docid)
-    print yaml.dump(res, explicit_start=True)
+    print(yaml.dump(res, explicit_start=True))
 
 
 def checkFiles():
@@ -200,25 +200,25 @@ def checkPID(pid):
 
 def report(show_content=False):
     consistent = True
-    hosts = accumulator['files'].keys()
+    hosts = list(accumulator['files'].keys())
     checksum = accumulator['files'][hosts[0]]['SHA224']
     for host in hosts[1:]:
         if checksum != accumulator['files'][host]['SHA224']:
             consistent = False
-    print """PID: {pid}
+    print("""PID: {pid}
 autogen: {autogen}
 revision: {revision}
-docid: {docid}""".format(**accumulator['data']['data'])
-    print "consistent: {0}".format(str(consistent))
+docid: {docid}""".format(**accumulator['data']['data']))
+    print("consistent: {0}".format(str(consistent)))
     if show_content:
         for host in accumulator['files']:
-            print "Host: {0}".format(host)
-            print """  exists: {exists}
+            print("Host: {0}".format(host))
+            print("""  exists: {exists}
   size: {size}
   modified: {date_modified}
   sha224: {SHA224}
   head: {head}
-  """.format(**accumulator['files'][host])
+  """.format(**accumulator['files'][host]))
 
 
 def main():

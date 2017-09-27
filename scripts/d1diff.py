@@ -98,17 +98,17 @@ def main():
   try:
     compare(args)
   except CompareError as e:
-    print u'Error: {}'.format(e.message)
+    print('Error: {}'.format(e.message))
     sys.exit(1)
   except KeyboardInterrupt:
-    print u'Exit'
+    print('Exit')
     sys.exit(1)
 
 
 def compare(args):
   if args.env not in ENV_DICT:
     raise CompareError(
-      u'Environment must be one of {}'.format(', '.join(ENV_DICT))
+      'Environment must be one of {}'.format(', '.join(ENV_DICT))
     )
 
   env_dict = ENV_DICT[args.env]
@@ -130,7 +130,7 @@ def compare(args):
 
   if args.nodeid is None:
     raise CompareError(
-      u'Must supply a MN Node ID (full or any part, case insensitive)'
+      'Must supply a MN Node ID (full or any part, case insensitive)'
     )
 
   return compare_one(args, args.nodeid, env_dict, cn_client, cn_base_url)
@@ -142,12 +142,12 @@ def compare_all(args, env_dict, cn_client, cn_base_url):
       compare_one(
         args, node_pyxb.identifier.value(), env_dict, cn_client, cn_base_url
       )
-    except StandardError as e:
+    except Exception as e:
       logging.exception(e.message)
 
 
 def compare_one(args, node_id, env_dict, cn_client, cn_base_url):
-  print u'Collecting information...'.format(env_dict['name'])
+  print('Collecting information...'.format(env_dict['name']))
 
   n_max_identifiers = args.max if args.max != -1 else None
 
@@ -156,20 +156,20 @@ def compare_one(args, node_id, env_dict, cn_client, cn_base_url):
     cn_client, cn_base_url, base_url=env_dict['base_url']
   )
   if cn_node_pyxb is None:
-    raise CompareError(u'CN Node ID not found on {}'.format(cn_base_url))
+    raise CompareError('CN Node ID not found on {}'.format(cn_base_url))
   cn_node_id = cn_node_pyxb.identifier.value()
 
   # MN
   mn_node_pyxb = find_node(cn_client, cn_base_url, node_id_search_str=node_id)
   if mn_node_pyxb is None:
     raise CompareError(
-      u'No match for MN Node ID search "{}" found on {}'.
+      'No match for MN Node ID search "{}" found on {}'.
       format(node_id, cn_base_url)
     )
   mn_node_id = mn_node_pyxb.identifier.value()
   if mn_node_pyxb.type != 'mn':
     raise CompareError(
-      u'MN Node ID "{}" is a {}. Must be a MN'.
+      'MN Node ID "{}" is a {}. Must be a MN'.
       format(mn_node_id, mn_node_pyxb.type.upper())
     )
   mn_base_url = mn_node_pyxb.baseURL
@@ -197,47 +197,47 @@ def compare_one(args, node_id, env_dict, cn_client, cn_base_url):
   )
   n_solr_records = count_solr_records(env_dict, mn_node_id)
 
-  print
-  print '-' * 80
-  print
-  print u'Environment: {}\n'.format(env_dict['name'])
+  print()
+  print('-' * 80)
+  print()
+  print('Environment: {}\n'.format(env_dict['name']))
   print_header(env_dict, cn_node_pyxb, mn_node_pyxb)
-  print u'\n{}: Total number of objects: {:n} (from {})'.format(
+  print('\n{}: Total number of objects: {:n} (from {})'.format(
     cn_node_id, n_cn_objects, mn_node_id
-  )
-  print u'{}: Total number of objects: {:n}'.format(mn_node_id, n_mn_objects)
+  ))
+  print('{}: Total number of objects: {:n}'.format(mn_node_id, n_mn_objects))
   print_unique(
     mn_node_id, cn_node_id, mn_pid_dict, cn_pid_dict, n_max_identifiers
   )
   print_unique(
     cn_node_id, mn_node_id, cn_pid_dict, mn_pid_dict, n_max_identifiers
   )
-  print u'\n{}: Solr index records for {}: {:n}'.format(
+  print('\n{}: Solr index records for {}: {:n}'.format(
     cn_node_id, mn_node_id, n_solr_records
-  )
+  ))
 
 
 def print_header(env_dict, cn_node_pyxb, mn_node_pyxb):
-  print u'{}: CN @ {}'.format(
+  print('{}: CN @ {}'.format(
     cn_node_pyxb.identifier.value(), cn_node_pyxb.baseURL
-  )
-  print u'{}: MN @ {}'.format(
+  ))
+  print('{}: MN @ {}'.format(
     mn_node_pyxb.identifier.value(), mn_node_pyxb.baseURL
-  )
+  ))
 
 
 def print_nodes(client, env_dict, cn_base_url):
-  print 'Nodes registered in {} @ {}:'.format(env_dict['name'], cn_base_url)
+  print('Nodes registered in {} @ {}:'.format(env_dict['name'], cn_base_url))
   for node_pyxb in nodeListIterator(client):
-    print u'  {}: {} @ {}'.format(
+    print('  {}: {} @ {}'.format(
       node_pyxb.identifier.value(), node_pyxb.type.upper(), node_pyxb.baseURL
-    )
+    ))
 
 
 def print_node_counts(client, env_dict, cn_base_url, cert_pem_path, cert_key_path):
-  print u'Total objects for nodes registered in {} @ {}:'.format(
+  print('Total objects for nodes registered in {} @ {}:'.format(
     env_dict['name'], cn_base_url
-  )
+  ))
   for node_pyxb in nodeListIterator(client):
     mn_client = d1_client.mnclient_1_1.MemberNodeClient_1_1(node_pyxb.baseURL,    cert_pem_path=cert_pem_path,
     cert_key_path=cert_key_path,
@@ -247,20 +247,20 @@ def print_node_counts(client, env_dict, cn_base_url, cert_pem_path, cert_key_pat
     except d1_common.types.exceptions.DataONEException as e:
       s = e.description.replace('\n', ' ')
       if len(s) > 50:
-        s = u'{}...'.format(s[:50])
-      count_str = u'{}: {}'.format(e.name, s)
-    except StandardError as e:
+        s = '{}...'.format(s[:50])
+      count_str = '{}: {}'.format(e.name, s)
+    except Exception as e:
       count_str = e.message
-    print u'  {}: {} @ {}: {}'.format(
+    print('  {}: {} @ {}: {}'.format(
       node_pyxb.identifier.value(),
       node_pyxb.type.upper(), node_pyxb.baseURL, count_str
-    )
+    ))
 
 
 def find_node(cn_client, display_str, node_id_search_str=None, base_url=None):
-  print u'{}: Searching NodeList for "{}"...'.format(
+  print('{}: Searching NodeList for "{}"...'.format(
     display_str, node_id_search_str if node_id_search_str else base_url
-  )
+  ))
   for node_pyxb in nodeListIterator(cn_client):
     if (node_id_search_str and node_id_search_str.lower() in node_pyxb.identifier.value().lower()) \
         or node_pyxb.baseURL == base_url:
@@ -296,11 +296,11 @@ def get_object_dict(
     pid_dict[object_info.identifier.value()] = object_info
     if (datetime.datetime.now() - start_time).seconds > 1.0 or i == n_objects - 1:
       start_time = datetime.datetime.now()
-      print u'{}: Retrieving ObjectList{}: {:.2f}% ({:,}/{:,})'.format(
-        node_id_display_str, u' for {}'.format(node_id_filter_str)
-        if node_id_filter_str else u'', (i + 1) / float(n_objects) * 100.0,
+      print('{}: Retrieving ObjectList{}: {:.2f}% ({:,}/{:,})'.format(
+        node_id_display_str, ' for {}'.format(node_id_filter_str)
+        if node_id_filter_str else '', (i + 1) / float(n_objects) * 100.0,
         i + 1, n_objects
-      )
+      ))
   return pid_dict, n_objects
 
 
@@ -312,27 +312,27 @@ def print_unique(
     this_node_id, other_node_id, this_dict, other_dict, n_max_identifiers=None
 ):
   only_pid_set = set(this_dict.keys()).difference(set(other_dict.keys()))
-  print
+  print()
   if not len(this_dict):
-    print u'{}: Has NO objects'.format(this_node_id)
+    print('{}: Has NO objects'.format(this_node_id))
   elif not len(only_pid_set):
-    print u'{}: Has {} objects, all of which are on {}'.format(
+    print('{}: Has {} objects, all of which are on {}'.format(
       this_node_id, len(this_dict), other_node_id
-    )
+    ))
   else:
-    print u'{}: Has {} objects that are not on {}'.format(
+    print('{}: Has {} objects that are not on {}'.format(
       this_node_id, len(only_pid_set), other_node_id
-    )
+    ))
   if n_max_identifiers and len(only_pid_set) > n_max_identifiers:
-    print u'{}: First {} objects:'.format(this_node_id, n_max_identifiers)
+    print('{}: First {} objects:'.format(this_node_id, n_max_identifiers))
   elif len(only_pid_set):
-    print u'{}: All {} objects:'.format(this_node_id, len(only_pid_set))
+    print('{}: All {} objects:'.format(this_node_id, len(only_pid_set)))
   for pid_str in sorted(
       only_pid_set, key=lambda x: this_dict[x].dateSysMetadataModified
   )[:n_max_identifiers]:
-    print u'{}:  pid="{}" dateSysMetadataModified="{}"'.format(
+    print('{}:  pid="{}" dateSysMetadataModified="{}"'.format(
       this_node_id, pid_str, this_dict[pid_str].dateSysMetadataModified
-    )
+    ))
 
 
 def count_solr_records(env_dict, node_id):
@@ -340,7 +340,7 @@ def count_solr_records(env_dict, node_id):
     host=env_dict['host'], solrBase=env_dict['solr_base']
   )
   return solr_client.count(
-    q=u'datasource:{}'.format(solr_client.escapeQueryTerm(node_id))
+    q='datasource:{}'.format(solr_client.escapeQueryTerm(node_id))
   )
 
 
@@ -372,7 +372,7 @@ class ObjectListIterator(object):
           objectFormat=self._object_format,
           replicaStatus=self._replica_status,
         )
-      except StandardError as e:
+      except Exception as e:
         #pass
         #logging.exception(e.message)
         #print self._client.last_response_body
@@ -424,7 +424,7 @@ class MultiprocessObjectListIterator(object):
 
     for page_idx in range(num_pages):
       object_list = self._pool.apply_async(self._getPage, (self, page_idx,))
-      print object_list.get(timeout=10 * 60)
+      print(object_list.get(timeout=10 * 60))
       #self._deque.extend(object_list.get(timeout=10 * 60))
 
   def _getPage(self, page_idx):
@@ -436,7 +436,7 @@ class MultiprocessObjectListIterator(object):
         objectFormat=self._object_format,
         replicaStatus=self._replica_status,
       )
-    except StandardError as e:
+    except Exception as e:
       logging.exception(e.message)
     else:
       logging.debug(
@@ -451,7 +451,7 @@ class MultiprocessObjectListIterator(object):
 def nodeListIterator(client):
   try:
     node_list_pyxb = client.listNodes()
-  except StandardError as e:
+  except Exception as e:
     logging.exception(e.message)
     raise
   else:

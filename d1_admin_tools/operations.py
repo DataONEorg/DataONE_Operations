@@ -7,7 +7,7 @@ import os
 import logging
 import time
 from getpass import getpass
-from StringIO import StringIO
+from io import StringIO
 from fabric.api import sudo, get, put, run
 from fabric.context_managers import env
 
@@ -27,9 +27,9 @@ def escapeSolrQueryTerm(term):
   reserved = ['+', '-', '&', '|', '!', '(', ')', '{', '}',
               '[', ']', '^', '"', '~', '*', '?', ':',
               ]
-  term = term.replace(u'\\', u'\\\\')
+  term = term.replace('\\', '\\\\')
   for c in reserved:
-    term = term.replace(c, u"\%s" % c)
+    term = term.replace(c, "\%s" % c)
   return term
 
 
@@ -68,10 +68,10 @@ def getCNClientCertificate(cert_file_name):
   host_name = env.host_string
   target_folder = os.path.join(os.path.expanduser('~'), ".dataone/certificates/{0}".format(host_name))
   if not os.path.exists(target_folder):
-    os.makedirs(target_folder, 0700)
+    os.makedirs(target_folder, 0o700)
   target_file = os.path.join(target_folder, cert_file_name)
   if os.path.exists(target_file):
-    print("The certificate file already exists: {0}. Rename or remove to download a new copy.".format(target_file))
+    print(("The certificate file already exists: {0}. Rename or remove to download a new copy.".format(target_file)))
     return
   source_file = os.path.join("/etc/dataone/client/private/", cert_file_name)
   get(source_file, target_file, use_sudo=True)
@@ -202,41 +202,3 @@ def resetNodeLogAggregationDate(node_id, ldap_pass=None, harvest_timestamp="1900
 #== CRUD on MN custom properties
 
 
-#========================
-#== DataONE Operations ==
-
-
-def resolve(client, pid):
-  ''' Resolve the provided identifier in the specified environment
-
-  :param client: An instance of CoordinatingNodeClient
-  :param pid: Identifier to resolve
-  :return: Dictionary mimicking an objectLocationList with addition of error entry
-  '''
-  logger = logging.getLogger('main')
-  response = {'status':{},
-              'xml': None,
-              }
-  try:
-    res = client.resolveResponse(pid)
-    obj_locs = client._read_dataone_type_response(
-      res, 'ObjectLocationList', response_is_303_redirect=True
-    )
-    response['status']['msg'] = 'OK'
-    response['status']['code'] = res.status_code
-    response['xml'] = res.content #dom.toprettyxml(indent="  ")
-    response['identifier'] = unicode(obj_locs.identifier.value())
-    response['id_is_sid'] = not (pid == response['identifier'])
-    response['objectLocation'] = []
-    for loc in obj_locs.objectLocation:
-      oloc = {'url': unicode(loc.url),
-              'nodeIdentifier': unicode(loc.nodeIdentifier.value()),
-              'baseURL': unicode(loc.baseURL),
-              'version': map(unicode, loc.version),
-              'preference': unicode(loc.preference) }
-      response['objectLocation'].append(oloc)
-  except Exception as e:
-    logger.info(e)
-    response['status']['msg'] = unicode(e)
-    #response['status']['code'] = e.errorCode
-  return response
