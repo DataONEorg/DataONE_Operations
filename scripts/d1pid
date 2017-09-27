@@ -401,14 +401,14 @@ class D1PIDDescribe(object):
     self.data = {'id': pid,                          #submitted ID
                  'pid': None,                        #PID determined
                  'sid': None,                        #SID determined, or None
-                 'system_metadata':{'status': None,  #System Metadata
+                 'system_metadata':{'status': 404,  #System Metadata
                                     'o': None,
                                     'xml': None,},
-                 'resolve':{'status': None,          #Resolve response
+                 'resolve':{'status': 404,          #Resolve response
                             'o': None,
                             'xml': None},
                  'downloads': None,                  #Number of downloads
-                 'index':{'status': None,            #Index document associated with this
+                 'index':{'status': 404,            #Index document associated with this
                           'o': None,
                           'xml': None},
                  'related':[]                        #Related content, list of (predicate, object)
@@ -433,7 +433,7 @@ class D1PIDDescribe(object):
       #  dom = res.toDOM(None)
       #  xml = dom.toprettyxml(2 * u' ')
       self.data['resolve']['xml'] = xml
-      self.data['resolve']['status'] = 0
+      self.data['resolve']['status'] = res.status_code
     except d1_common.types.exceptions.NotFound:
       self.data['resolve']['status'] = 404
 
@@ -525,7 +525,13 @@ class D1PIDDescribe(object):
     cn_client = env_nodes.getClient()
     try:
       self.doResolve(cn_client)
-      self.doCheckDownload(cn_client)
+      if args.testdownload:
+        self.doCheckDownload(cn_client)
+      if self.data['resolve']['status'] != 404:
+        self.data['pid'] = self.data['resolve']['o']['identifier']
+        if args.check_index:
+          self.doGetIndexDocument(args, cn_client)
+
     except TerminateAnalysisException as e:
       self._l.warn("Evaluation terminated: %s", e)
 
@@ -844,6 +850,10 @@ def main():
   parser.add_argument('-O', '--owner',
                       default=None,
                       help='Google account for owner of generated Google Sheet')
+  parser.add_argument('-D', '--testdownload',
+                      default=False,
+                      action='store_true',
+                      help='Test if the object is downloadable from resolve location')
 
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   logger = logging.getLogger('main')
