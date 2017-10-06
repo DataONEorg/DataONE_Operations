@@ -70,7 +70,8 @@ setup(
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['requests', 'fabric', 'xmljson', 'dateparser',
-                      'humanize', 'pytz', 'tzlocal', ],
+                      'humanize', 'pytz', 'tzlocal', 'keyring',
+                      ],
 
     # List additional groups of dependencies here (e.g. development
     # dependencies). You can install these using the following syntax,
@@ -109,7 +110,7 @@ setup(
              'scripts/d1pid',
              'scripts/d1verifytoken',
              'scripts/d1logintoken',
-             'scripts/httpcli',
+#             'scripts/httpcli',
              ],
 
     # To provide executable scripts, use entry points in preference to the
