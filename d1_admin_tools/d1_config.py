@@ -7,7 +7,7 @@ import logging
 import codecs
 import json
 import pprint
-from . import d1_nodes
+from d1_admin_tools import d1_nodes
 
 ENCODING = 'utf-8'
 CONFIG_FOLDER = os.path.join( os.getenv("HOME"), ".dataone" )
@@ -242,17 +242,18 @@ if __name__ == "__main__":
   level = levels[min(len(levels) - 1, args.log_level)]
   logging.basicConfig(level=level,
                       format="%(asctime)s %(levelname)s %(message)s")
-  conf = D1Configuration()
   config_file = args.config
   if args.initialize:
     if os.path.exists(config_file):
       logging.error("The configuration file %s already exists. Rename or remove to initialize.", config_file)
       sys.exit(1)
     logging.info("Initializing config file %s", config_file)
-    os.makedirs(os.path.basename(config_file))
+    os.makedirs(os.path.dirname(config_file))
+    conf = D1Configuration()
     conf.initialize()
     conf.save(config_file)
     sys.exit(0)
   logging.info("Loading from %s", config_file)
+  conf = D1Configuration()
   conf.load(config_file)
   conf.dump()
