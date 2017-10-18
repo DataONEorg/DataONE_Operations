@@ -10,23 +10,113 @@ import argparse
 import d1_admin_tools.d1_config
 import pprint
 from d1_client import cnclient_2_0
+import time
 import datetime
 import pytz
 import humanize
+from d1_admin_tools import d1_nodes
+import requests
+from requests import exceptions
+import httplib
 
 
-def doListNodes(config, env, node_type='all'):
+def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.org/"):
+  '''
+  e.g.: https://redmine.dataone.org/issues/7969
+  :param node_id:
+  :param api_key:
+  :param base_url:
+  :return:
+  '''
+  data = {'key': api_key,
+          'cf_31': node_id,
+          }
+  response = requests.get(base_url + "issues.json", params=data)
+  issue = response.json()
+  try:
+    issue_id = issue['issues'][0]['id']
+  except IndexError as ex:
+    logging.error("Could not find redmine issue for %s", node_id)
+    return None
+  return base_url + "issues/" + str(issue_id)
+
+
+def testNodePing(node_wrap):
+  '''
+  Returns (http status, milliseconds) for /monitor/ping
+  :param node_wrap:
+  :return:
+  '''
+  logging.info("Pinging %s", node_wrap.getID())
+  client = node_wrap.getClient(allow_redirects=False, timeout=5)
+  tstart = time.time()
+  try:
+    response = client.pingResponse()
+  except exceptions.SSLError as ex:
+    logging.exception(ex)
+    return {'status':'-1',
+            'ping':0,
+            'status_message':str(ex.message),
+            }
+  except exceptions.ConnectionError as ex:
+    logging.exception(ex)
+    return {'status':'-2',
+            'ping':0,
+            'status_message':str(ex.message),
+            }
+
+  tend = time.time()
+  return {
+    'status': response.status_code,
+    'ping':tend-tstart,
+    'status_message': httplib.responses[response.status_code],
+  }
+
+def getObjectCount(nodes, node_id, mn_ping_status):
+  logging.info("List objects for node: %s", node_id)
+  res = {'cn_object_count':0,
+         'mn_object_count':0,
+         }
+  # get CN count
+  cn_client = nodes.getClient()
+  try:
+    kwparams = {'count':0,
+                'nodeId': node_id }
+    cn_lo = cn_client.listObjects(**kwparams)
+    res['cn_object_count'] = cn_lo.total
+  except Exception as ex:
+    logging.exception(ex)
+    return res
+  if int(mn_ping_status) == 200:
+    # get MN count
+    try:
+      kwparams = {'count':0}
+      mn_client = nodes.getClient(node_id)
+      mn_lo = mn_client.listObjects(**kwparams)
+      res['mn_object_count'] = mn_lo.total
+    except Exception as ex:
+      logging.exception(ex)
+      return res
+  return res
+
+
+def doListNodes(config, env, node_type='all', do_ping=False, do_listobjects=False, redmine_key=None):
   '''
   returns  dict with {xml}, items:[  ]
   replicate="false" synchronize="false" type="cn" state="up"
   '''
+  if do_listobjects:
+    do_ping = True
   logger = logging.getLogger('main')
   client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env))
   nodes_response = client.listNodesResponse()
-  nodes = client._read_dataone_type_response(nodes_response, 'NodeList')
-  result = {'xml': nodes_response.content,
+  nodes_doc = client._read_dataone_type_response(nodes_response, 'NodeList')
+  nodes = d1_nodes.Nodes(config.envPrimaryBaseURL(env))
+  nodes.load(nodes=nodes_doc)
+  result = {'generated': datetime.datetime.utcnow(),
+            'xml': nodes_response.content,
             'items': []}
-  for node in nodes.node:
+  for node in nodes_doc.node:
     row = {'nodeId': node.identifier.value(),
            'baseUrl': node.baseURL,
            'name': node.name,
@@ -41,7 +131,27 @@ def doListNodes(config, env, node_type='all'):
            'lastHarvested':'',
            'lastHarvest':'',
            'schedule_text':'',
+           'version':'v1',
+           'status':'',
+           'ping':'',
+           'mn_object_count':'',
+           'cn_object_count':'',
+           'issue_url': '',
            }
+    node_wrap = nodes.getNode(row['nodeId'])
+    if node_wrap.isV2():
+      row['version'] = 'v2'
+    if do_ping:
+      res = testNodePing(node_wrap)
+      row['ping'] = "{:.2f}".format(res['ping'])
+      row['status'] = str(res['status'])
+      row['status_message'] = ''
+      if res['status'] != 200:
+        row['status_message'] = res['status_message']
+    if do_listobjects:
+      res = getObjectCount(nodes, row['nodeId'], row['status'])
+      row['mn_object_count'] = str(res['mn_object_count'])
+      row['cn_object_count'] = str(res['cn_object_count'])
     if node.type.lower() == 'mn':
       row['lastHarvested'] = node.synchronization.lastHarvested.strftime("%Y-%m-%dT%H:%M:%S%Z")
       row['lastHarvest'] = humanize.naturaltime(datetime.datetime.utcnow().replace(tzinfo=pytz.utc) - node.synchronization.lastHarvested)
@@ -59,6 +169,10 @@ def doListNodes(config, env, node_type='all'):
       row['subject'].append(s.value())
     for s in node.contactSubject:
       row['contactSubject'].append(s.value())
+    if redmine_key is not None:
+      url = getRedmineNodeIssueUrl(row['nodeId'], redmine_key)
+      if url is not None:
+        row['issue_url'] = url
     if node_type == 'all':
       result['items'].append(row)
     elif node_type == "mn" and row['type'].lower() == 'mn':
@@ -83,6 +197,16 @@ def renderTextResults(data, fields):
     print((fmtstr.format(**row)))
 
 
+def renderCSVResults(data, fields):
+  import csv
+  fout = sys.stdout
+  fout.write("# Generated: {}\n".format(data['generated'].isoformat()))
+  writer = csv.DictWriter(fout, fieldnames=fields, extrasaction='ignore', quoting=csv.QUOTE_NONNUMERIC)
+  writer.writeheader()
+  for row in data['items']:
+    writer.writerow(row)
+
+
 # synchronize="false" type="cn" state="up"
 def main():
   parser = argparse.ArgumentParser(description=__doc__,
@@ -100,16 +224,32 @@ def main():
                       default=False,
                       action='store_true',
                       help = "Show synchronization schedule information")
+  parser.add_argument('-P', '--ping',
+                      default=False,
+                      action='store_true',
+                      help="Ping each node and report on status.")
+  parser.add_argument('-C', '--countobjects',
+                      default=False,
+                      action='store_true',
+                      help='Get listObjects counts from MN and CN (implies ping)')
+  parser.add_argument('-R', '--redmine_key',
+                      default=None,
+                      help="Key for accessing Redmine issues")
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')
 
   PP = pprint.PrettyPrinter(indent=2)
   nodes = []
 
-  results = doListNodes(config, args.environment, args.node_type)
+  results = doListNodes(config,
+                        args.environment,
+                        args.node_type,
+                        do_ping=args.ping,
+                        do_listobjects=args.countobjects,
+                        redmine_key=args.redmine_key)
 
   format = args.format.lower()
-  if format not in ['text', 'json', 'yaml', 'xml']:
+  if format not in ['text', 'json', 'yaml', 'xml', 'csv']:
     format = 'text'
   summary = None
   if args.nodeid:
@@ -143,9 +283,18 @@ def main():
     for row in summary:
       print(row)
     return 0
-  fields = ['nodeId', 'baseUrl', 'name']
+  fields = ['nodeId', 'baseUrl', 'version', 'name']
   if args.schedule:
-    fields = ['nodeId', 'baseUrl', 'lastHarvest', 'schedule_text']
+    fields = ['nodeId', 'baseUrl', 'version', 'lastHarvest', 'schedule_text']
+  if args.redmine_key is not None:
+    fields += ['issue_url', ]
+  if args.ping:
+    fields += ['status','ping', 'status_message']
+    if args.countobjects:
+      fields += ['cn_object_count','mn_object_count']
+  if format == 'csv':
+    renderCSVResults(results, fields)
+    return 0
   renderTextResults(results['items'], fields)
   return 0
 
