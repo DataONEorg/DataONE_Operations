@@ -56,6 +56,7 @@ ALLOWED_PROPERTIES = [
   'CN_date_deprecated',
   'CN_logo_url',
   'CN_info_url',
+  'CN_location_lonlat',     #longitude,latitude WGS84, same order as WKT POINT
 ]
 
 
