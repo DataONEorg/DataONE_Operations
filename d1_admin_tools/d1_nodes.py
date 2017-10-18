@@ -22,6 +22,10 @@ class Node(object):
     self.kw_hash = ""
 
 
+  def getID(self):
+    return self._node.identifier.value()
+
+
   def getBaseURL(self):
     '''
     Get the baseURL of this node
@@ -183,15 +187,17 @@ class Nodes(object):
     return node.getClient(force_new=force_new, **kwargs)
 
 
-  def load(self, **kwargs):
+  def load(self, nodes=None, **kwargs):
     '''
     Load the nodes from the base_url provided in the Nodes constructor.
 
     :return: nothing
     '''
-    self._L.debug("Loading node list from %s", self.base_url)
-    client = cnclient_2_0.CoordinatingNodeClient_2_0(self.base_url, allow_redirects=False, **kwargs)
-    nodes = client.listNodes()
+    client = None
+    if nodes is None:
+      self._L.debug("Loading node list from %s", self.base_url)
+      client = cnclient_2_0.CoordinatingNodeClient_2_0(self.base_url, allow_redirects=False, **kwargs)
+      nodes = client.listNodes()
     self.nodes = {}
     for node in nodes.node:
       anode = Node(node)
@@ -221,6 +227,7 @@ class Nodes(object):
         if len(a123) > 3:
           if a123[3] == '2':
             self.primary_node_id = "urn:node:CN"
+
 
 
 #==============================
