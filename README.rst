@@ -36,9 +36,9 @@ not then install from PyPi (``pip install dataone.libclient``) or for a locally 
 
 1. Checkout d1_python_
 
-2. ``pip install -U -e d1_python/d1_common_python/src``
+2. ``pip install -U -e d1_python/lib_common/src``
 
-3. ``pip install -U -e d1_python/d1_libclient_python/src``
+3. ``pip install -U -e d1_python/lib_client/src``
 
 .. _d1_python: https://github.com/DataONEorg/d1_python
 
