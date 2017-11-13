@@ -24,6 +24,9 @@ def doListObjects(client, *params, **kvparams):
 
 
 def dateTimeToText(dt, humanize=False):
+  if dt.tzinfo is None:
+    tz = pytz.timezone("UTC")
+    dt.replace(tzinfo=tz)
   if humanize:
     return humanize.naturaltime(dt)
   return dt.strftime(DATE_FORMAT)
@@ -33,6 +36,14 @@ def dateTimeToRelative(dt0, dt1, as_days=False):
   '''
   Return number of seconds from dt0 to dt1
   '''
+  if dt0.tzinfo is None:
+    # assume UTC
+    tz = pytz.timezone("UTC")
+    dt0 = dt0.replace(tzinfo=tz)
+  if dt1.tzinfo is None:
+    # assume UTC
+    tz = pytz.timezone("UTC")
+    dt1 = dt1.replace(tzinfo=tz)
   delta = dt1-dt0
   if as_days:
     nsec = delta.seconds + delta.microseconds / 1000000.0
@@ -117,10 +128,10 @@ def main():
   if not base_url is None:
     if args.api_version == '2':
       from d1_client import baseclient_2_0
-      client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url)
+      client = baseclient_2_0.DataONEBaseClient_2_0(base_url)
     else:
       from d1_client import baseclient_1_1
-      client = d1baseclient_1_1.DataONEBaseClient_1_1(base_url)
+      client = baseclient_1_1.DataONEBaseClient_1_1(base_url)
   else:
     env_nodes = config.envNodes(args.environment)
     client = env_nodes.getClient(node_id)
