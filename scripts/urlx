@@ -24,6 +24,8 @@ Examples:
   echo "https%3A//some.host.name/path%20with/spaces/test%3Fq%3Da%3Ab%26rows%3D10%23fragment%0A" | urlx -d
   https://some.host.name/path with/spaces/test?q=a:b&rows=10#fragment
 """
+from future.standard_library import install_aliases
+install_aliases()
 
 import sys
 import logging
