@@ -6,6 +6,11 @@ DataONE Operations Documentation
 
 Operations documentation for the DataONE_ project and deployed infrastructure.
 
+While these documents are being fleshed out, older information is available at:
+
+* https://github.com/DataONEorg/DataONE_Operations/wiki
+* https://purl.dataone.org//index.html
+
 
 Contents
 --------
