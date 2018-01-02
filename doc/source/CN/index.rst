@@ -7,7 +7,6 @@ Coordinating Nodes
 
    configuration
    letsencrypt
-
-Search Interface
-----------------
+   searchui
+   readonly
 

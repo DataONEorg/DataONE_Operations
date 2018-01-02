@@ -23,6 +23,8 @@ import os
 
 import sphinx_bootstrap_theme
 
+from recommonmark.parser import CommonMarkParser
+
 # -- General configuration ------------------------------------------------
 
 # If your documentation needs a minimal Sphinx version, state it here.
@@ -41,6 +43,11 @@ extensions = [
     'plantweb.directive',
     ]
 
+# Support for Markdown as a source type
+source_parsers = {
+  '.md': CommonMarkParser,
+}
+
 # Add any paths that contain templates here, relative to this directory.
 templates_path = ['_templates']
 
@@ -48,14 +55,14 @@ templates_path = ['_templates']
 # You can specify multiple suffix as a list of string:
 #
 # source_suffix = ['.rst', '.md']
-source_suffix = '.rst'
+source_suffix = ['.rst', '.md']
 
 # The master toctree document.
 master_doc = 'index'
 
 # General information about the project.
 project = 'Operations'
-copyright = '2009-2017, DataONE'
+copyright = '2009-2018, DataONE'
 author = 'DataONE'
 html_context = {
   'github_project_url':'https://github.com/DataONEorg/DataONE_Operations',

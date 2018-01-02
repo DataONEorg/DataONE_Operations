@@ -8,4 +8,5 @@ Project Resources
 
    communications
    metrics
-   
+   issuetracking
+   vmsetup

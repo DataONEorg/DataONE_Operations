@@ -8,9 +8,9 @@ import sys
 import logging
 import argparse
 import d1_admin_tools
-from d1_client import solr_client
+from d1_admin_tools import solrclient
 
-def doGetFacets(config, environment, field, core='solr', q='*:*'):
+def doGetFacets(url, field, core='solr', q='*:*'):
   '''
     host='cn.dataone.org',
     solrBase='/cn/v1/query/solr/',
@@ -25,8 +25,8 @@ def doGetFacets(config, environment, field, core='solr', q='*:*'):
   :param q:
   :return:
   '''
-  client = solr_client.SolrClient( config.envPrimaryBaseURL(environment), query_engine=core )
-  vals = client.get_field_values( field, q=q )
+  client = solrclient.SolrClient( url, core )
+  vals = client.getFieldValues( field, q=q )
   result = {'numFound':vals['numFound'],
             'field':field,
             'values':[]}
@@ -59,10 +59,17 @@ def main():
   parser.add_argument('-q', '--query',
                       default='*:*',
                       help='Query to use')
+  parser.add_argument('-B','--baseurl',
+                      help='BaseURL of solr service to use',
+                      default=None)
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')
 
-  results = doGetFacets(config, args.environment, args.field, args.core, args.query)
+  url = config.envPrimaryBaseURL(args.environment)
+  if args.baseurl is not None:
+    url = args.baseurl
+
+  results = doGetFacets(url, args.field, args.core, args.query)
 
   format = args.format.lower()
   if not format in ['text', 'json', 'yaml']:

@@ -272,7 +272,7 @@ def main():
                         redmine_key=args.redmine_key)
 
   format = args.format.lower()
-  if format not in ['text', 'json', 'yaml', 'xml', 'csv']:
+  if format not in ['text', 'json', 'yaml', 'xml', 'csv', 'html', ]:
     format = 'text'
 
   summary = None

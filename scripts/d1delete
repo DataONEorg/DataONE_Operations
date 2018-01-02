@@ -13,7 +13,7 @@ identifier will remain in the system and can not be reused.
 '''
 
 '''
-TODO: investigate why successful delete in production did not clear the entry form the search index.
+TODO: investigate why successful delete in production did not clear the entry from the search index.
 
 cn-orc-1:/var/log/dataone/index$ grep -r "seadva-e056e535-da57-40c0-90c1-c2e55d2ec573" *
 cn-index-generator-daemon.log:[ INFO] 2016-11-08 16:07:24,382 (IndexTaskGeneratorEntryListener:entryRemoved:133) REMOVE EVENT - index task generator - system metadata callback invoked on pid: seadva-e056e535-da57-40c0-90c1-c2e55d2ec573

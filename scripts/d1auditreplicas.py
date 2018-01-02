@@ -23,7 +23,7 @@ TIMEOUT_SEC = 30 * 60
 
 def main():
   parser = argparse.ArgumentParser(
-    description='Attempt to retrieve replias and display results'
+    description='Attempt to retrieve replicas and display results'
   )
   parser.add_argument(
     '--env', type=str, default='prod',

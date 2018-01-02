@@ -119,6 +119,15 @@ def toMdTable(header, matrix, widths=None):
   return res
 
 
+def toUnicode(a):
+  if not isinstance(a, basestring):
+    return a
+  if isinstance(a, unicode):
+    return a
+  return a.decode("utf-8")
+
+
+
 #==================
 #++ Fabric Tasks ++
 
@@ -368,7 +377,8 @@ class CNodeComparison(object):
                         node_id=node_id, 
                         date_start=date_start, 
                         date_end=date_end)
-                        
+    return
+
                         
   def filesHereNotThere(self, host_a, host_b):
     dbc = self.getDatabaseConnection()
@@ -550,19 +560,29 @@ def main():
     else:
       dest_folder = "getpids_{0}_{1}".format( args.environment,
                                               tnow.strftime("%Y%m%d") )
+    dest_folder = os.path.abspath(dest_folder)
+  logging.debug("Using destination folder: %s", dest_folder)
 
-  work = CNodeComparison(dest_folder)
   if args.analyze_only:
+    logging.debug("Performing analyzeData")
+    work = CNodeComparison(dest_folder)
     work.analyzeData()
     return 0
 
   if args.render_only:
+    logging.debug("Performing render")
+    work = CNodeComparison(dest_folder)
     work.render(format=args.format)
     return 0
 
   if not os.path.exists(dest_folder):
+    logging.debug("Creating destination folder: %s", dest_folder)
     os.makedirs(dest_folder)
-    createLocalDatabase(dest_folder)
+
+  work = CNodeComparison(dest_folder)
+
+  #createLocalDatabase(dest_folder)
+
   date_start = None
   date_end = None
   if args.date_start is not None:
@@ -586,6 +606,10 @@ def main():
              "request":{},
              "results":{}
              }
+
+  work.loadDataFromHosts(hosts, node_id=args.node_id, date_start=date_start, date_end=date_end)
+  return 0
+
   try:
     doGetIdentifiersPSQL(results, hosts, dest_folder, 
                          args.node_id, date_start, date_end)

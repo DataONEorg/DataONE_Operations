@@ -1,7 +1,11 @@
 LetsEncrypt Certificates
 ========================
 
+
 See also [[Connectivity and Certificates|CN_connectivity]]
+
+.. contents:: 
+   :local:
 
 Install Certbot
 ---------------
@@ -16,12 +20,17 @@ Adjust ``node.properties``
 
 Two additional properites need to be added to ``/etc/dataone/node.properties``:
 
-| Key                 | Description |
-| ------------------- | ------------|
-| `environment.hosts` | Space delimited list of host names for CNs participating in the environment |
-| `cn.rsyncuser`      | Username of account to use when syncing content across CNs. |
+====================== ===============
+Key                    Description 
+====================== ===============
+``environment.hosts``  Space delimited list of host names for CNs participating in the environment 
+``cn.rsyncuser``       Username of account to use when syncing content across CNs. 
+====================== ===============
 
-For example, on ``cn-stage-ucsb-1.test.dataone.org``::
+
+For example, on ``cn-stage-ucsb-1.test.dataone.org``:
+
+.. code-block:: properties
 
   environment.hosts=cn-stage-ucsb-1.test.dataone.org cn-stage-unm-1.test.dataone.org cn-stage-orc-1.test.dataone.org
   cn.rsyncuser=rsync_user
@@ -29,7 +38,9 @@ For example, on ``cn-stage-ucsb-1.test.dataone.org``::
 Prepare for Verification
 ------------------------
 
-Before running the certificate generation command it is necessary to create the working folder that will be used for the verifications. Do the following on each CN::
+Before running the certificate generation command it is necessary to create the working folder that will be used for the verifications. Do the following on each CN:
+
+.. code-block:: bash
 
   PROPERTIES="/etc/dataone/node.properties"
   RSUSER=$(grep "^cn.rsyncuser=" ${PROPERTIES} | cut -d'=' -f2)
@@ -38,7 +49,9 @@ Before running the certificate generation command it is necessary to create the 
   sudo setfacl -Rdm g:${RSUSER}:rw /var/www/.well-known/acme-challenge/
   sudo chmod g+s /var/www/.well-known/acme-challenge/
 
-Apache must be configured to not redirect the verification address in the ``.well-known`` folder. The following example is for ``cn-stage-ucsb-1.test.dataone.org``. Adjust ``ServerName``, ``ServerAlias``, and ``RedirectMatch`` with appropriate values for the respective environment and host::
+Apache must be configured to not redirect the verification address in the ``.well-known`` folder. The following example is for ``cn-stage-ucsb-1.test.dataone.org``. Adjust ``ServerName``, ``ServerAlias``, and ``RedirectMatch`` with appropriate values for the respective environment and host:
+
+.. code-block:: apache
 
   <VirtualHost *:80>
     ###
@@ -62,7 +75,9 @@ Supporting Scripts
 
 The certificate generation process relies on the following authentication and cleanup hooks to copy verification information to other nodes participating in the environment and to cleanup afterwards.
 
-``/etc/letsencrypt/renewal/manual-auth-hook.sh``::
+``/etc/letsencrypt/renewal/manual-auth-hook.sh``:
+
+.. code-block:: bash
 
   #!/bin/bash
   PROPERTIES="/etc/dataone/node.properties"
@@ -79,7 +94,9 @@ The certificate generation process relies on the following authentication and cl
     fi
   done
 
-``/etc/letsencrypt/renewal/manual-cleanup-hook.sh``::
+``/etc/letsencrypt/renewal/manual-cleanup-hook.sh``:
+
+.. code-block:: bash
 
   #!/bin/bash
   PROPERTIES="/etc/dataone/node.properties"
@@ -98,7 +115,7 @@ The certificate generation process relies on the following authentication and cl
 
 After a certificate is renewed, it is necessary to notify administrators that some action is required. Place the following `notify-administrators.sh` in the `renew-hook.d` folder. Any scripts in that folder will be called on a successful certificate renewal.
 
-::
+.. code-block:: bash
 
   #!/bin/bash
   PROPERTIES="/etc/dataone/node.properties"
