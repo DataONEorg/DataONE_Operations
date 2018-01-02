@@ -171,9 +171,9 @@ In ``/usr/share/redmine``::
 
 
 ::
+
   cd /usr/share/redmine
   bundle install --without development test
-  bundle exec rake redmine:plugins:migrate --trace NAME=redhopper RAILS_ENV=production
 
 Transferred to Postgresql using ``pgloader``::
 
@@ -198,7 +198,9 @@ and set defaults for new objects::
   alter default privileges grant all on tables to redmine;
 
 
-Installed scrum plugin from https://redmine.ociotec.com/projects/redmine-plugin-scrum/wiki
+Installed scrum plugin from https://redmine.ociotec.com/projects/redmine-plugin-scrum/wiki::
+
+  bundle exec rake redmine:plugins:migrate --trace NAME=scrum RAILS_ENV=production
 
 
 
