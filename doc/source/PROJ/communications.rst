@@ -41,7 +41,7 @@ includes the following lists:
    * - `community@dataone.org
        <https://groups.google.com/a/dataone.org/forum/#!forum/community>`_
 
-     - A voluntary participation mailing list tfor dissemninating information
+     - A voluntary participation mailing list for disseminating information
        to the community with interest in DataONE.
 
    * - `coredev@dataone.org
