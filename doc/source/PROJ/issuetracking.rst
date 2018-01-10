@@ -11,25 +11,24 @@ Product         Tracker
 Infrastructure  `redmine.dataone.org/projects/d1 <https://redmine.dataone.org/projects/d1>`_
 Member Nodes    `redmine.dataone.org/projects/mns <https://redmine.dataone.org/projects/mns>`_
 www.dataone.org `redmine.dataone.org/projects/d1ops <https://redmine.dataone.org/projects/d1ops>`_
-Metacat         `projects.ecoinformatics.org/ecoinfo/projects/metacat-5 <metacat-5>`_.
-MetacatUI       `github.com/NCEAS/metacatui <ghmetacatui>`_ and 
-                `projects.ecoinformatics.org/ecoinfo/projects/metacatui <metacatui>`_
+Metacat         `projects.ecoinformatics.org/ecoinfo/projects/metacat-5 
+                <https://projects.ecoinformatics.org/ecoinfo/projects/metacat-5>`_.
+MetacatUI       `github.com/NCEAS/metacatui <https://github.com/NCEAS/metacatui/issues>`_
 =============== ============= 
-
-.. _metacat-5: https://projects.ecoinformatics.org/ecoinfo/projects/metacat-5
-.. _ghmetacatui: https://github.com/NCEAS/metacatui/issues
-.. _metacatui: https://projects.ecoinformatics.org/ecoinfo/projects/metacatui
 
 
 Redmine.dataone.org
 -------------------
 
-Redmine is currently setup on an Ubuntu 16.04 server running at UNM. The
-installation uses the redmine distribution available from the standard Ubuntu
-``apt`` repositories. Redmine is using a Postgresql database, converted from
-the previous MySQL installation using pgloader_. Details of the installation
-can be found at `redmine.dataone.org/admin/info
-<https://redmine.dataone.org/admin/info>`_ which as of 2018-01-02 provides::
+Authentication at redmine.dataone.org is 
+
+
+Redmine is currently (2018-01-02) setup on an Ubuntu 16.04 server running at
+UNM. The installation uses the redmine distribution available from the
+standard Ubuntu ``apt`` repositories. Redmine is using a Postgresql database,
+converted from the previous MySQL installation using pgloader_. Details of the
+installation can be found at `redmine.dataone.org/admin/info
+<https://redmine.dataone.org/admin/info>`_ which provides::
 
   Environment:
     Redmine version                3.2.1.stable
@@ -52,6 +51,90 @@ can be found at `redmine.dataone.org/admin/info
 
 
 .. _pgloader: https://pgloader.io/
+
+
+Scripting Redmine
+~~~~~~~~~~~~~~~~~
+
+REST API reference: http://www.redmine.org/projects/redmine/wiki/Rest_api
+
+User API key: https://redmine.dataone.org/my/account
+
+Given:
+
+.. code-block:: bash
+
+  KEY="my-api-key-from-redmine"
+  URL="https://redmine.dataone.org"
+
+List project names and their IDs:
+
+.. code-block:: bash
+  
+  curl -s "${URL}/projects.xml?key=${KEY}&limit=100" | \
+  xml sel -t -m "//project" -v "id" -o ": " -v "name" -n
+
+  43: DUG
+  12: Infrastructure
+  18: Animations
+  34: Java Client
+  37: Log Reporting
+  40: MN Dashboard
+  ...
+
+
+List issue trackers:
+
+.. code-block:: bash
+  
+  curl -s "${URL}/trackers.xml?key=${KEY}" | \
+  xml sel -t -m "//tracker" -v "id" -o ": " -v "name" -n
+  
+  4: Story
+  5: Task
+  1: Bug
+  2: Feature
+  ...
+
+List issue statuses:
+
+.. code-block:: bash
+
+  curl -s "${URL}/issue_statuses.xml?key=${KEY}" | \
+  xml sel -t -m "//issue_status" -v "id" -o ": " -v "name" -n
+
+  1: New
+  12: Planning
+  13: Ready
+  2: In Progress
+  ...
+
+List custom fields:
+
+.. code-block:: bash
+
+  curl -s "${URL}/custom_fields.xml?key=${KEY}" | \
+  xml sel -t -m "//custom_field" -v "id" -o ": " -v "name" -n
+
+  7: Estimatedhours
+  10: Impact
+  14: Remaining time
+  15: Risk cat
+  16: Risk prob
+  ...
+
+List issues of `tracker id` = 9, in `project id` = 20, with `status id` = 9 status (MNDeployment tickets in Member Nodes project that are operational):
+
+.. code-block:: bash
+
+  curl -s "${URL}/issues.xml?key=${KEY}&limit=100&project_id=20&status_id=9&tracker_id=9" | \
+  xml sel -t -m "//issue" -v "id" -o ": " -v "custom_fields/custom_field[@name='MN URL']" -n
+
+  7969: http://www.uvm.edu/vmc
+  7956: http://environmentaldatainitiative.org/
+  7842: https://researchworkspace.com/intro/
+  7629: https://arcticdata.io/
+  ...
 
 
 Upgrade Notes, redmine 2.6 -> 3.2

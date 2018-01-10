@@ -75,6 +75,11 @@ includes the following lists:
 
      - Private list for members of the DataONE Leadership Team.
 
+   * - `team@dataone.org
+       <https://groups.google.com/a/dataone.org/forum/#!forum/team>`_
+
+     - Active project participants.
+
    * - `mn-coordinators@dataone.org <https://groups.google.com/a/dataone.org/forum/#!forum/mn-coordinators>`_
 
      - Private list for the Member Node coordination team.
