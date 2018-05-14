@@ -255,7 +255,7 @@ Make sure you have an LDAP connection on port 3890 by doing something like:
   print(( yaml.dump(listAllNodeProperties(con), default_flow_style=False, explicit_start=True) ))
   sys.exit(0)
   
-  node_id = input("Node ID: ")
+  node_id = eval(input("Node ID: "))
   res = readNodeProperty(con, node_id, "*")
   dn = node_id
   if len(res) > 0:

@@ -4,7 +4,7 @@ import os
 import argparse
 import logging
 import logging.handlers
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import requests
 import datetime
 import json
