@@ -111,6 +111,7 @@ setup(
              'scripts/d1pid',
              'scripts/d1verifytoken',
              'scripts/d1logintoken',
+             'scripts/d1auditreplicas',
 #             'scripts/httpcli',
              ],
 
