@@ -17,7 +17,7 @@ import humanize
 from d1_admin_tools import d1_nodes
 import requests
 from requests import exceptions
-import httplib
+import http.client
 
 
 def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.org/"):
@@ -69,7 +69,7 @@ def testNodePing(node_wrap):
   return {
     'status': response.status_code,
     'ping':tend-tstart,
-    'status_message': httplib.responses[response.status_code],
+    'status_message': http.client.responses[response.status_code],
   }
 
 
@@ -287,9 +287,9 @@ def main():
   if format == 'json':
     import json
     if summary is not None:
-      print(json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
+      print((json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
       return 0
-    print(json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
+    print((json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
     return 0
   if format == 'yaml':
     import yaml
@@ -300,7 +300,7 @@ def main():
   if format == 'xml':
     import xml.dom.minidom
     dom = xml.dom.minidom.parseString(results['xml'])
-    print(dom.toprettyxml(indent=' '*2))
+    print((dom.toprettyxml(indent=' '*2)))
     return 0
   #text or anything else
   if not summary is None:
