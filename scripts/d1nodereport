@@ -98,7 +98,7 @@ class NodeInfo(object):
     sql = "INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?, ?, ?)".format(table_name)
     cnt = 0
     for entry in entries:
-      pid = entry['pid'].encode("utf-8")
+      pid = entry['pid']
       rid = shortuuid.uuid(session_id + pid)
       dmodified = entry['date_modified'].strftime(SQLITE3_DATE_FORMAT)
       csr.execute(sql, (rid, session_id, pid, entry['format_id'], dmodified, entry['size']))
@@ -164,11 +164,11 @@ def doListObjectsWithPaging(client, params, callback=None, store=None):
                 'fromDate': params['date_start'],
                 'toDate': params['date_end']}
 
-    if params.has_key('node_id'):
+    if 'node_id' in params:
       kwparams['nodeId'] = params['node_id']
-    if params.has_key('id_filter'):
+    if 'id_filter' in params:
       kwparams['identifier'] = params['id_filter']
-    if params.has_key('fmt_filter'):
+    if 'fmt_filter' in params:
       kwparams['formatId'] = params['fmt_filter']
 
     res = doListObjects(client, **kwparams)
@@ -225,8 +225,8 @@ def getCoordinatingNodePids(client, node_id, date_last_modified=None):
 def comparePids(cn_pids, mn_pids):
   res = {'cn_not_mn': [],
          'mn_not_cn': []}
-  mn_pidset = set(map(lambda x: x['pid'], mn_pids))
-  cn_pidset = set(map(lambda x: x['pid'], cn_pids))
+  mn_pidset = set([x['pid'] for x in mn_pids])
+  cn_pidset = set([x['pid'] for x in cn_pids])
   res['cn_not_mn'] = list(cn_pidset - mn_pidset)
   res['mn_not_cn'] = list(mn_pidset - cn_pidset)
   return res
@@ -236,18 +236,18 @@ def renderResults(cn_pids, mn_pids, compare_results, format="json"):
   print("Identifiers on CN not on MN")
   c = 1
   for pid in compare_results['cn_not_mn']:
-    print("{}: {}".format(c, pid))
+    print(("{}: {}".format(c, pid)))
     c += 1
   print("===========================")
   print("Identifiers on MN not on CN")
   c = 1
   for pid in compare_results['mn_not_cn']:
-    print("{}: {}".format(c, pid))
+    print(("{}: {}".format(c, pid)))
     c += 1
 
 
 def fillPidList(pids, pidinfo):
-  pid_index = map(lambda x: x['pid'], pidinfo)
+  pid_index = [x['pid'] for x in pidinfo]
   results = []
 
 
@@ -276,11 +276,9 @@ def main(args, config):
 
   store.endSession()
 
-  return
-
   compare_results = comparePids(cn_pids, mn_pids)
-  mn_pid_index = map(lambda x: x['pid'], mn_pids)
-  cn_pid_index = map(lambda x: x['pid'], cn_pids)
+  mn_pid_index = [x['pid'] for x in mn_pids]
+  cn_pid_index = [x['pid'] for x in cn_pids]
   renderResults(cn_pids, mn_pids, compare_results, format=args.format)
 
 
