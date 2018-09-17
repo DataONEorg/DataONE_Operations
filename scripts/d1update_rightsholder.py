@@ -4,6 +4,8 @@
 # To be executes on CN due to requiring CN cert access as well as copies of the MN cert.
 # Last tested using dataone.libclient version 2.4.2 (python 2.7)
 
+# execute as sudo for access to cn cert: sudo /filepath/my_venv/bin/python update_rightsholder.py
+
 import d1_client.mnclient_2_0
 import logging
 logging.basicConfig(filename='cleanupRH-errors.log',
