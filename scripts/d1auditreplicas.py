@@ -31,25 +31,25 @@ def main():
   )
   parser.add_argument(
     '--cert-pub', dest='cert_pem_path', action='store', default=None,
-    help='path to PEM formatted public key of certificate'
+    help='Path to PEM formatted public key of certificate'
   )
   parser.add_argument(
     '--cert-key', dest='cert_key_path', action='store', default=None,
-    help='path to PEM formatted private key of certificate'
+    help='Path to PEM formatted private key of certificate'
   )
   parser.add_argument(
     '--timeout', action='store', default=TIMEOUT_SEC,
-    help='amount of time to wait for calls to complete (seconds)'
+    help='Amount of time to wait for calls to complete (seconds)'
   )
   parser.add_argument(
     '--use-v1', action='store_true', default=False,
-    help='use the v1 API (v2 is default)'
+    help='Use the v1 API (v2 is default)'
   )
   parser.add_argument(
-    '--debug', action='store_true', default=False, help='debug level logging'
+    '--debug', action='store_true', help='Debug level logging'
   )
   parser.add_argument(
-    'pid', nargs='+', help='list of PIDs to audit'
+    'pid', nargs='+', help='List of PIDs to audit'
   )
 
   args = parser.parse_args()
@@ -162,4 +162,4 @@ class AuditError(Exception):
 
 
 if __name__ == '__main__':
-  main()
+  sys.exit(main())

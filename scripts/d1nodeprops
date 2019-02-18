@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 '''
 CRUD operations on protected node properties.
 
@@ -65,17 +67,17 @@ def main():
                       default='read',
                       help='Operation to perform (read, update, list)') 
   parser.add_argument('-p', '--password',
-                      default=None,
+
                       help='LDAP bind password for cn=admin,dc=dataone,dc=org')
   parser.add_argument('value',
                       nargs='?',
-                      default=None,
+
                       help='Value of property to set, no value update deletes')
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   logger = logging.getLogger('main')
   operation = args.operation.lower()
   if operation not in ['read', 'update', 'list']:
-    print(("operation must be one of 'read' or 'update', not '{0}'".format(operation)))
+    print("operation must be one of 'read' or 'update', not '{0}'".format(operation))
     return 1
   the_key = args.key
   conn = d1np.getLDAPConnection(host=args.host,
@@ -92,9 +94,9 @@ def main():
         nwidth = len(row[0])+1
     fmtstr = "{0:" + str(nwidth) + "} {1:6} {2:5} {3:6} {4:6}"
     row = ['NodeId','Approv','State','Sync','Repl']
-    print((fmtstr.format(*row)))
+    print(fmtstr.format(*row))
     for row in res:
-      print((fmtstr.format(*row)))
+      print(fmtstr.format(*row))
     return 0
   if args.nodeid is None:
     print("nodeid is requried")
@@ -110,16 +112,16 @@ def main():
   results = d1np.readNodeProperty(conn, args.nodeid, the_key)
   if args.format == 'json':
     import json
-    print(( json.dumps(results) ))
+    print( json.dumps(results) )
   else:
     #text
     dn = args.nodeid
     if len(results) > 0:
       dn = results[0][0]
-    print(("DN: {0}".format(dn)))
-    print(("{0:15}  {1} ".format("Key","Value")))
+    print("DN: {0}".format(dn))
+    print("{0:15}  {1} ".format("Key","Value"))
     for entry in results:
-      print(("{0:15}  {1}".format(entry[2], entry[3])))
+      print("{0:15}  {1}".format(entry[2], entry[3]))
   conn.unbind_s()
 
 

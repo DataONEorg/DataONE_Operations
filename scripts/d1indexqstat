@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 """
 
 Examine the postgres index queue.
@@ -178,21 +180,17 @@ def main():
                       help='Host name to query')
   parser.add_argument('-N', '--include_node',
                       action='store_true',
-                      default=False,
                       help="Include nodeId in report")
   parser.add_argument('-F', '--include_formatid',
                       action='store_true',
-                      default=False,
                       help="Include formatId in report")
   parser.add_argument('-I','--identifiers',
-                      default=None,
                       help='Output identifiers for entries of specified state (NEW, IN PROCESS, or FAILED). Overrides -N and -F')
   parser.add_argument('-t','--include_timestamps',
                       action='store_true',
-                      default=False,
                       help='Include timestamps when requesting identifiers')
   parser.add_argument('-P','--pidqpos',
-                      default=None,
+
                       help='Get the queue position for the specified PID, overrides other parameters')
 
   args, config = d1_admin_tools.defaultScriptMain(parser, with_config=False, with_environment=False, with_format=False)
@@ -200,7 +198,7 @@ def main():
   if args.pidqpos is not None:
     execute(getPIDQInfo, args.pidqpos, dst_file, host=args.host)
     with open(dst_file, 'r') as src:
-      print((src.read()))
+      print(src.read())
     return 0
   if args.identifiers is not None:
     status = args.identifiers.upper()
@@ -212,7 +210,7 @@ def main():
   else:
     execute( getIndexQueueStatus, dst_file, include_node=args.include_node, include_formatid=args.include_formatid, host=args.host)
   with open(dst_file, 'r') as src:
-    print((src.read()))
+    print(src.read())
   return 0
 
 

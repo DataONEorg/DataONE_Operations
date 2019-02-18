@@ -38,14 +38,14 @@ from d1_client import cnclient_2_0
 
 
 def presentBefore(environment, pid, res):
-  print(("Request to delete identifier {0} from the {1} environment".format(pid, environment)))
+  print("Request to delete identifier {0} from the {1} environment".format(pid, environment))
   print("Resolve status before delete:")
   pprint.pprint(res['before'], indent=2)
 
 
 def doDelete(client, pid):
   results = {}
-  logging.warn("DELETE: %s", pid)
+  logging.warning("DELETE: %s", pid)
   response = client.deleteObjectResponse(pid)
   results = {'result': client._read_dataone_type_response(response, 'Identifier'),
              'status': response.status_code}
@@ -56,9 +56,9 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-E', '--certificate',
-                      default=None,
+
                       help='Certificate to authenticate request.')
-  parser.add_argument('-b','--batch', action='store_true', default=False,
+  parser.add_argument('-b','--batch', action='store_true',
                       help='Batch mode - provide file name with one pid per line instead of PID argument')
   parser.add_argument('pid',
                       help="Identifier to delete")
@@ -80,7 +80,7 @@ def main():
         if len(pid) > 0:
           pids.append(pid)
     print("")
-    print(("About to DELETE content for {0} identifiers from the {1} environment.".format(len(pids), args.environment)))
+    print("About to DELETE content for {0} identifiers from the {1} environment.".format(len(pids), args.environment))
     affirmation = input("Please confirm DELETE (yes or no):")
     if affirmation != 'yes':
       raise ValueError("Terminating DELETE request.")
@@ -95,7 +95,7 @@ def main():
     if results['before']['status']['msg'] == 'OK':
       if not args.batch:
         print("")
-        print(("About to DELETE content for identifier {0} from the {1} environment.".format(pid, args.environment)))
+        print("About to DELETE content for identifier {0} from the {1} environment.".format(pid, args.environment))
         affirmation = input("Please confirm DELETE (yes or no):")
         if affirmation != 'yes':
           raise ValueError("Terminating DELETE request.")

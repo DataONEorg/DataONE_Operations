@@ -48,13 +48,12 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-B', '--base_url',
-                      default=None,
+
                       help='Base URL of node to connect with (overrides -e)')
   parser.add_argument('-C', '--core',
                       default='solr',
                       help='Name of solr index to use (solr)')
   parser.add_argument('-d', '--descriptions',
-                      default=False,
                       action='store_true',
                       help='Include descriptions in text output (False)')
   args, config = d1_admin_tools.defaultScriptMain(parser, arg_defaults=defaults)
@@ -90,9 +89,9 @@ def main():
   if args.descriptions:
     line += " Description"
     line += " "* (line_width-len(line))
-  print(("-"*len(line)))
+  print("-"*len(line))
   print(line)
-  print(("-"*len(line)))
+  print("-"*len(line))
   for row in results['fields']:
     line = "{name:<27}{type:<18}{searchable:<3}{multivalued:<3}".format(**row)
     if args.descriptions:
@@ -101,7 +100,7 @@ def main():
                             subsequent_indent=' '*len(line),
                             drop_whitespace=True,
                             replace_whitespace=True)
-      print(( line + descr.lstrip()))
+      print( line + descr.lstrip())
     else:
       print(line)
   return 0

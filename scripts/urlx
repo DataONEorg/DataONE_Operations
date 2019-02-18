@@ -123,19 +123,17 @@ if __name__ == "__main__":
                       default=0,
                       help='Set logging level, multiples for more detailed.')
   parser.add_argument('-u', '--url',
-                      default=False,
                       action='store_true',
                       help='Parse the input as a URL and encode / decode the parts that need it.')
   parser.add_argument('-f', '--format',
                       default='text',
                       help='Output format (text, json)')
   parser.add_argument('-d', '--decode',
-                      default=False,
                       action='store_true',
                       help="URL decode, otherwise encode")
   parser.add_argument('data',
                       nargs='?',
-                      default=None,
+
                       help='String to process')
   args = parser.parse_args()
   # Setup logging verbosity

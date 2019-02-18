@@ -492,10 +492,10 @@ class CNodeComparison(object):
     hostnames = list(map(shrinkHostName, hosts))
     data = self.readJsonFile(DOCID_ANALYSIS)
     header, matrix = dataToTable(hostnames, data)
-    print(( toMdTable(header, matrix)))
+    print( toMdTable(header, matrix))
     data = self.readJsonFile(PID_ANALYSIS)
     header, matrix = dataToTable(hostnames, data)
-    print(( toMdTable(header, matrix)))
+    print( toMdTable(header, matrix))
 
 
 ##==============================================================================
@@ -524,27 +524,25 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-n', '--node_id',
-                      default=None,
+
                       help='Origin Node Identifier for identifiers')
   parser.add_argument('-x', '--date_start',
-                      default=None,
+
                       help='Starting date for records')
   parser.add_argument('-y', '--date_end',
-                      default=None,
+
                       help='Ending date for records')
   parser.add_argument('-d', '--dest_folder',
-                      default=None,
+
                       help="Folder for results, defaults to getpids_ENVIRONMENT_DATE.")
   parser.add_argument('-H', '--hosts',
-                      default=None,
+
                       help='Use specified comma delimited list of nodes, overrides -e')
   parser.add_argument('-A','--analyze_only',
                       action='store_true',
-                      default=False,
                       help="Analyze previously retrieved results (-d required)")
   parser.add_argument('-R','--render_only',
                       action='store_true',
-                      default=False,
                       help="Render previously analyzed results (-d required)")
   args, config = d1_admin_tools.defaultScriptMain(parser)
   logger = logging.getLogger('main')

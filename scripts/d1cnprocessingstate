@@ -135,10 +135,10 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-S', '--set_state',
-                      default=None,
+
                       help="Set services state (TRUE or FALSE)")
   parser.add_argument('-H','--host',
-                      default=None,
+
                       help="Host name of CN to set state (overrides -e)")
   args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
   host = config.envPrimaryHost(args.environment)
@@ -146,7 +146,7 @@ def main():
     host = args.host
   if args.set_state is not None:
     if args.set_state not in ['TRUE','FALSE']:
-      print(("Error: value for set_state must be TRUE or FALSE only, not {0}.".format(args.set_state)))
+      print("Error: value for set_state must be TRUE or FALSE only, not {0}.".format(args.set_state))
       return 1
     logging.info("Setting state for processing services on %s to %s", host, args.set_state)
     usrpass = getDataONESudo()
@@ -163,8 +163,8 @@ def main():
       hide('warnings', 'running', 'stdout', 'stderr'),
   ):
     res = execute(getProcessingServicesEnabled, host=host)
-  print(("Processing states for {0}".format(host)))
-  print(("  {synchronization}\n  {replication}\n  {logaggregation}\n".format(**res[host])))
+  print("Processing states for {0}".format(host))
+  print("  {synchronization}\n  {replication}\n  {logaggregation}\n".format(**res[host]))
 
 
 if __name__ == "__main__":

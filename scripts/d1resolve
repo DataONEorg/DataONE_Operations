@@ -61,7 +61,7 @@ def doResolve(pid, environments, configuration):
   '''
   logger = logging.getLogger('main')
   if len(environments) > 1:
-    logger.warn('Checking all environments...')
+    logger.warning('Checking all environments...')
   results = []
   for env in environments:
     logger.debug("Checking environment: %s", env)
@@ -117,7 +117,7 @@ def main():
       return 0
   if args.format == 'yaml':
     import yaml
-    print((yaml.safe_dump(results, encoding=d1_admin_tools.d1_config.ENCODING)))
+    print(yaml.safe_dump(results, encoding=d1_admin_tools.d1_config.ENCODING))
   elif args.format == 'json':
     import json
     for result in results:
@@ -125,12 +125,12 @@ def main():
         result['resolve'].pop('xml', None)
       except:
         pass
-    print((json.dumps(results, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
+    print(json.dumps(results, indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
   elif args.format == 'xml':
     import xml.dom.minidom
     for result in results:
       dom = xml.dom.minidom.parseString(result['resolve']['xml'])
-      print((dom.toprettyxml(indent="  ")))
+      print(dom.toprettyxml(indent="  "))
   else:
     PP.pprint(results)
   return 0

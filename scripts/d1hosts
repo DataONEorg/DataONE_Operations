@@ -36,7 +36,6 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-p', '--primary',
-                      default=False,
                       action='store_true',
                       help="List only the primary host(s)")
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
@@ -73,4 +72,4 @@ def main():
   return 0
 
 if __name__ == "__main__":
-  main()
+  sys.exit(main())

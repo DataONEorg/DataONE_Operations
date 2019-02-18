@@ -205,7 +205,7 @@ def renderTextResults(data, fields):
   for f in fields:
     fmtstr += "{" + f + ":<" + str(flen[f]+1) + "}"
   for row in data:
-    print((fmtstr.format(**row)))
+    print(fmtstr.format(**row))
 
 
 def renderCSVResults(data, fields):
@@ -232,26 +232,21 @@ def main():
                       default='all',
                       help = "Node type to return, cn = CNs, mn = MNs, all = all nodes (default)")
   parser.add_argument("-s", "--schedule",
-                      default=False,
                       action='store_true',
                       help = "Show synchronization schedule information")
   parser.add_argument('-P', '--ping',
-                      default=False,
                       action='store_true',
                       help="Ping each node and report on status.")
   parser.add_argument('-C', '--countobjects',
-                      default=False,
                       action='store_true',
                       help='Get listObjects counts from MN and CN (implies ping)')
   parser.add_argument('-R', '--redmine_key',
-                      default=None,
+
                       help="Key for accessing Redmine issues")
   parser.add_argument('--ignore_state',
-                      default=False,
                       action='store_true',
                       help="Ping regardless of node state flag")
   parser.add_argument('--ping_report',
-                      default=False,
                       action='store_true',
                       help="Generate a ping report in CSV. Overrides other flags.")
   args, config = d1_admin_tools.defaultScriptMain(parser)
@@ -294,9 +289,9 @@ def main():
   if format == 'yaml':
     import yaml
     if summary is not None:
-      print((yaml.safe_dump(summary, encoding=d1_admin_tools.d1_config.ENCODING)))
+      print(yaml.safe_dump(summary, encoding=d1_admin_tools.d1_config.ENCODING))
       return 0
-    print((yaml.safe_dump(results['items'], encoding=d1_admin_tools.d1_config.ENCODING)))
+    print(yaml.safe_dump(results['items'], encoding=d1_admin_tools.d1_config.ENCODING))
   if format == 'xml':
     import xml.dom.minidom
     dom = xml.dom.minidom.parseString(results['xml'])
