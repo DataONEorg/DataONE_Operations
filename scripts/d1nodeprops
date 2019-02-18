@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 '''
 CRUD operations on protected node properties.
 
@@ -38,13 +36,54 @@ Example: find node properties for NodeID:
    -s one -a always -z 1000 -LLL \
    "(objectClass=d1NodeProperty)"
 
+Yaml properties file:
 
+nodes:
+  - nodeId: "urn:node:blah"
+    properties:
+      CN_node_name: "Some node name"
+  - nodeId: "urn:node:other"
 '''
 import sys
 import logging
 import argparse
 import d1_admin_tools
 from d1_admin_tools import d1_node_properties as d1np
+import json
+import yaml
+from pprint import pprint
+import os.path
+
+def printNodeProperties(properties, format="text"):
+  if format == "json":
+    print(( json.dumps(properties) ))
+    return
+  dn = properties['dn']
+  print(("DN: {0}".format(dn)))
+  print(("{0:25}  {1} ".format("Key", "Value")))
+  for entry in properties['properties']:
+    print(("{0:25}  {1}".format(entry[2].decode("utf-8"), entry[3].decode("utf-8"))))
+
+
+def processUpdateFromYaml(conn, yaml_file, dry_run=True):
+  _L = logging.getLogger("YamlBatch")
+  properties = {}
+  with open(yaml_file, "r") as yaml_src:
+    properties = yaml.load(yaml_src)
+  for node_props in properties["nodes"]:
+    node_id = node_props["nodeId"]
+    for the_key in node_props["properties"]:
+      if the_key not in d1np.ALLOWED_PROPERTIES:
+        _L.error("Bad key: %s", the_key)
+        break
+      if dry_run:
+        _L.info("Set %s.%s to %s", node_id, the_key, node_props["properties"][the_key])
+      else:
+        d1np.createOrUpdateNodeProperty(conn, node_id, the_key, node_props["properties"][the_key])
+    the_key = '*'
+    results = d1np.readNodeProperty(conn, node_id, the_key)
+    printNodeProperties(results)
+
 
 #=== main ===
 
@@ -67,17 +106,24 @@ def main():
                       default='read',
                       help='Operation to perform (read, update, list)') 
   parser.add_argument('-p', '--password',
-
+                      default=None,
                       help='LDAP bind password for cn=admin,dc=dataone,dc=org')
   parser.add_argument('value',
                       nargs='?',
-
+                      default=None,
                       help='Value of property to set, no value update deletes')
+  parser.add_argument('-y', '--yaml',
+                      default=None,
+                      help="YAML file to read properties for update")
+  parser.add_argument('-Y', '--dry_run',
+                      action="store_true",
+                      default=False,
+                      help="Don't do anything, just show changes.")
   args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
   logger = logging.getLogger('main')
   operation = args.operation.lower()
   if operation not in ['read', 'update', 'list']:
-    print("operation must be one of 'read' or 'update', not '{0}'".format(operation))
+    print(("operation must be one of 'read' or 'update', not '{0}'".format(operation)))
     return 1
   the_key = args.key
   conn = d1np.getLDAPConnection(host=args.host,
@@ -94,34 +140,32 @@ def main():
         nwidth = len(row[0])+1
     fmtstr = "{0:" + str(nwidth) + "} {1:6} {2:5} {3:6} {4:6}"
     row = ['NodeId','Approv','State','Sync','Repl']
-    print(fmtstr.format(*row))
+    print((fmtstr.format(*row)))
     for row in res:
-      print(fmtstr.format(*row))
+      trow = []
+      for entry in row:
+        trow.append( entry.decode("utf-8") )
+      print((fmtstr.format(*trow)))
     return 0
-  if args.nodeid is None:
-    print("nodeid is requried")
+  if args.nodeid is None and args.yaml is None:
+    print("nodeid or yaml file requried")
     return 1
   if operation == 'update':
-    if the_key not in d1np.ALLOWED_PROPERTIES:
-      print(("Key must be one of: {0}".format( \
+    if args.yaml is not None:
+      if not os.path.exists(args.yaml):
+        logger.error("No YAML at %s", args.yaml)
+      processUpdateFromYaml(conn, args.yaml, dry_run=args.dry_run)
+      conn.unbind_s()
+      return 0
+    else:
+      if the_key not in d1np.ALLOWED_PROPERTIES:
+        print(("Key must be one of: {0}".format( \
                          " ,".join(d1np.ALLOWED_PROPERTIES))))
-      return 1
-    d1np.createOrUpdateNodeProperty(conn, args.nodeid, args.key, args.value)
-    the_key = '*'
-    
+        return 1
+      d1np.createOrUpdateNodeProperty(conn, args.nodeid, args.key, args.value)
+      the_key = '*'
   results = d1np.readNodeProperty(conn, args.nodeid, the_key)
-  if args.format == 'json':
-    import json
-    print( json.dumps(results) )
-  else:
-    #text
-    dn = args.nodeid
-    if len(results) > 0:
-      dn = results[0][0]
-    print("DN: {0}".format(dn))
-    print("{0:15}  {1} ".format("Key","Value"))
-    for entry in results:
-      print("{0:15}  {1}".format(entry[2], entry[3]))
+  printNodeProperties(results, args.format)
   conn.unbind_s()
 
 

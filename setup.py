@@ -69,7 +69,7 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['requests', 'fabric', 'xmljson', 'dateparser',
+    install_requires=['requests', 'fabric3', 'xmljson', 'dateparser',
                       'humanize', 'pytz', 'tzlocal', 'keyring',
                       'python-ldap',
                       ],
@@ -108,9 +108,11 @@ setup(
              'scripts/d1cnprocessingstate',
              'scripts/d1mnadmin',
              'scripts/d1nodeprops',
+             'scripts/d1nodereport',
              'scripts/d1pid',
              'scripts/d1verifytoken',
              'scripts/d1logintoken',
+             'scripts/d1auditreplicas',
 #             'scripts/httpcli',
              ],
 

@@ -25,7 +25,7 @@ def doGetFacets(url, field, core='solr', q='*:*'):
   :param q:
   :return:
   '''
-  client = solrclient.SolrClient( url, core )
+  client = solrclient.SolrClient( url + "/v2/query", core )
   vals = client.getFieldValues( field, q=q )
   result = {'numFound':vals['numFound'],
             'field':field,

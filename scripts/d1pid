@@ -63,6 +63,7 @@ DEFAULT_PYXB_TYPECAST = str
 DEFAULT_SOLR_FIELD_TYPE= 'string'
 
 DEFAULT_CREDENTIALS=os.path.join(os.path.expanduser('~'), ".dataone/gspread-credentials.json")
+DEFAULT_CREDENTIALS=os.path.join(os.path.expanduser('~'), ".dataone/gdrive/general-gspread-64647417dca7.json")
 
 #==============================================================================
 # Utility methods
@@ -533,7 +534,7 @@ class D1PIDDescribe(object):
           self.doGetIndexDocument(args, cn_client)
 
     except TerminateAnalysisException as e:
-      self._l.warn("Evaluation terminated: %s", e)
+      self._l.warning("Evaluation terminated: %s", e)
 
 
 
@@ -580,7 +581,7 @@ class D1PIDDescribe(object):
         print("Retrieving search index entry...")
         self.doGetIndexDocument(args, cn_client)
     except TerminateAnalysisException as e:
-      self._l.warn("Evaluation terminated: %s", e)
+      self._l.warning("Evaluation terminated: %s", e)
 
 
   def renderText(self, dest):
@@ -597,7 +598,6 @@ class D1PIDDescribe(object):
 
 
   def getTabularResult(self):
-
     def addfield(a, f):
       if not f in a:
         a.append(f)
@@ -749,7 +749,7 @@ class D1PIDDescribe(object):
     ]
     g_owner = args.owner
     if g_owner is None:
-      with file(args.credentials, 'r') as gfile:
+      with open(args.credentials, 'r') as gfile:
         gaccount_info = json.load(gfile)
         try:
           g_owner = gaccount_info['default_owner']

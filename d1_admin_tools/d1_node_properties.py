@@ -103,14 +103,13 @@ def createNodeProperty(con, node_id, key, value):
   node_id = expandNodeID(node_id)
   dn = "d1NodePropertyId={0},cn={1},dc=dataone,dc=org".format(property_id, node_id)
   logging.debug("DN = %s", dn)
-  entry = {'objectClass': ['top', 'd1NodeProperty'],
-           'd1NodeId': node_id,
-           'd1NodePropertyId': property_id,
-           'd1NodePropertyKey': key,
-           'd1NodePropertyValue': value,
+  entry = {'objectClass': [b'top', b'd1NodeProperty'],
+           'd1NodeId': node_id.encode('utf-8'),
+           'd1NodePropertyId': property_id.encode('utf-8'),
+           'd1NodePropertyKey': key.encode('utf-8'),
+           'd1NodePropertyValue': value.encode('utf-8'),
           }
   add_record = modlist.addModlist(entry)
-  pprint( add_record )
   con.add_s(dn, add_record)
 
 
@@ -123,7 +122,8 @@ def readNodeProperty(con, node_id, key):
   
   Note that you can use a "*" to return all properties for node_id.
   '''
-  result = []
+  result = {'dn':'',
+            'properties':[]}
   node_id = expandNodeID(node_id)
   dn = "cn={0},dc=dataone,dc=org".format(node_id)
   q = "(&(objectClass=d1NodeProperty)(d1NodePropertyKey={0}))".format(key)
@@ -133,19 +133,24 @@ def readNodeProperty(con, node_id, key):
     'd1NodePropertyKey',
     'd1NodePropertyValue']
   res = con.search_s(dn, ldap.SCOPE_SUBTREE, q, attrs )
+  result['dn'] = dn
   for entry in res:
     row = (entry[0], 
            _readEntryValue(entry, 'd1NodePropertyId'),
            _readEntryValue(entry, 'd1NodePropertyKey'),
            _readEntryValue(entry, 'd1NodePropertyValue')
            )
-    result.append(row)
+    logging.debug(str(row))
+    result['properties'].append(row)
   return result
 
 
 def updateNodeProperty(con, node_id, key, value, old_value=None):
   '''Update existing node property  
   '''
+  logging.debug("updateNodeProperty")
+  logging.debug("VALUE=%s", value)
+  logging.debug("OLD VALUE=%s", old_value)
   if key not in ALLOWED_PROPERTIES:
     raise KeyError("key must be one of {0}".format( \
        ",".join(ALLOWED_PROPERTIES)))
@@ -153,13 +158,12 @@ def updateNodeProperty(con, node_id, key, value, old_value=None):
   node_id = expandNodeID(node_id)
   if old_value is None:
     res = readNodeProperty(con, node_id, key)
-    old_value = res[0][3]
+    old_value = res['properties'][0][3]
   dn = "d1NodePropertyId={0},cn={1},dc=dataone,dc=org".format(property_id, node_id)
   logging.debug("DN = %s", dn)
-  old_entry = {'d1NodePropertyValue': old_value}
-  entry = {'d1NodePropertyValue': value}
+  old_entry = {'d1NodePropertyValue': [old_value, ]}
+  entry = {'d1NodePropertyValue': [value.encode("utf-8"), ]}
   mod_record = modlist.modifyModlist(old_entry, entry)
-  pprint( mod_record )
   return con.modify_s(dn, mod_record)
 
 
@@ -179,14 +183,14 @@ def createOrUpdateNodeProperty(con, node_id, key, value):
   '''Update the specified node property or create if not present
   '''
   res = readNodeProperty(con, node_id, key)
-  if len(res) == 0:
+  if len(res['properties']) == 0:
     if value is None:
       # A null value deletes, but there's nothing to delete
       return None
     return createNodeProperty(con, node_id, key, value)
   if value is None:
     return deleteNodeProperty(con, node_id, key)
-  return updateNodeProperty(con, node_id, key, value, old_value=res[0][3])
+  return updateNodeProperty(con, node_id, key, value, old_value=res['properties'][0][3].decode("utf-8"))
 
 
 def listNodes(con, attrs=None):
@@ -219,7 +223,7 @@ def listAllNodeProperties(con):
     entry = {}
     for k in ALLOWED_PROPERTIES:
       entry[k] = None
-    for prop in props:
+    for prop in props['properties']:
       if prop[2].startswith("CN_"):
         entry[prop[2]] = prop[3]
     result[node] = entry
@@ -255,13 +259,11 @@ Make sure you have an LDAP connection on port 3890 by doing something like:
   print(( yaml.dump(listAllNodeProperties(con), default_flow_style=False, explicit_start=True) ))
   sys.exit(0)
   
-  node_id = input("Node ID: ")
+  node_id = eval(input("Node ID: "))
   res = readNodeProperty(con, node_id, "*")
-  dn = node_id
-  if len(res) > 0:
-    dn = res[0][0]
+  dn = res['dn']
   print("----")
   print(("Properties set on {0}:".format(dn)))
   print(("  {0:15}  {1} ".format("Key","Value")))
-  for entry in res:
+  for entry in res['properties']:
     print(("  {0:15}  {1}".format(entry[2], entry[3])))

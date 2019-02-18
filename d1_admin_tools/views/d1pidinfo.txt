@@ -14,17 +14,28 @@ Indexed Information
 
 Shows the values added to the search index for this object.
 
+Number of matches found: {{index.o.numFound}}
 
 Relations
 ---------
 
 
+
 Availability
 ------------
 
-Tests whether the object can be accessed at each of the URLs resported CN.resolve.
+Tests whether the object can be accessed at each of the URLs resported CN.resolve. Reports on properties of
+system metadata retrieved from each location.
 {% for e in resolve.o.objectLocation %}
-* {{e.nodeIdentifier}} ({{e.version |join(", ")}}) : {{e.status}}{% endfor %}
+* {{e.nodeIdentifier}} ({{e.version |join(", ")}}) : {{e.status}}
+  URL: {{e.url}}
+  Size: {{e.systemMetadata.o.size}}
+  Checksum: {{e.systemMetadata.o.checksum.algorithm}}:{{e.systemMetadata.o.checksum.v}}
+  Modified: {{e.systemMetadata.o.dateSysMetadataModified}}
+  Archived: {{e.systemMetadata.o.archived}}
+  Obsoletes: {{e.systemMetadata.o.obsoletes}}
+  ObsoletedBy: {{e.systemMetadata.o.obsoletedBy}}
+{% endfor %}
 
 
 Use

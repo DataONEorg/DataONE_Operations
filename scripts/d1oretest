@@ -1,0 +1,225 @@
+#!/usr/bin/env python
+"""
+Resolve an identifier.
+"""
+
+import sys
+import logging
+import argparse
+import d1_admin_tools
+import pprint
+import time
+import requests
+import inspect
+import codecs
+from contextlib import closing
+import d1_pyore
+import json
+
+DEFAULT_DOWNLOAD_TIMEOUT = 5
+DEFAULT_DOWNLOAD_MAXBYTES = 4096
+
+#========================
+#== DataONE Operations ==
+
+def downloadDocument(url):
+  if url == "-":
+    return sys.stdin.read()
+  if url.startswith("https://") or url.startswith("http://"):
+    response = requests.get(url)
+    return response.text
+  with codecs.open(url, encoding="utf-8") as f:
+    return f.read()
+
+
+def testDownload(url,
+                 terminate_secs=DEFAULT_DOWNLOAD_TIMEOUT,
+                 terminate_max_bytes=DEFAULT_DOWNLOAD_MAXBYTES):
+  """
+  Test GET operation, terminating the request
+
+  Performs a GET operation on the supplied URL and terminates the response after terminate_secs seconds
+  or after terminate_max_bytes have been retrieved from the server, which ever happens first.
+
+  Args:
+    url: URL target for GET request
+    terminate_secs: Number of seconds after which connection is terminated
+    terminate_max_bytes: maximum number of bytes to download before terminating
+
+  Returns: status code, -1 if connection timed out on try; -2 on connection error
+  """
+  _l = logging.getLogger(inspect.currentframe().f_code.co_name)
+  status_code = -1
+  try:
+    with closing(requests.get(url, timeout=terminate_secs, stream=True)) as r:
+      data = ''
+      total_bytes = 0
+      tstart = time.time()
+      try:
+        for data in r.iter_content():
+          total_bytes += len(data)
+          if total_bytes > terminate_max_bytes:
+            _l.info("Request terminated by maximum bytes")
+            raise StopIteration()
+          if time.time() - tstart > terminate_secs:
+            _l.info("Request terminated by total time")
+            raise StopIteration()
+      except StopIteration:
+        pass
+      status_code = r.status_code
+  except requests.exceptions.Timeout as e:
+    _l.info("Request timed out on connection")
+    status_code = -1
+  except requests.exceptions.ConnectionError as e:
+    _l.info("Request failed with connection error: %s", str(e))
+    status_code = -2
+  return status_code
+
+
+def resolve(client, pid):
+  ''' Resolve the provided identifier in the specified environment
+
+  :param client: An instance of CoordinatingNodeClient
+  :param pid: Identifier to resolve
+  :return: Dictionary mimicking an objectLocationList with addition of error entry
+  '''
+  logger = logging.getLogger('main')
+  response = {'status':{'msg':'','code':-10},
+              'xml': None,
+              }
+  try:
+    res = client.resolveResponse(pid)
+    obj_locs = client._read_dataone_type_response(
+      res, 'ObjectLocationList', response_is_303_redirect=True
+    )
+    response['status']['msg'] = 'OK'
+    response['status']['code'] = res.status_code
+    response['xml'] = res.content #dom.toprettyxml(indent="  ")
+    response['identifier'] = str(obj_locs.identifier.value())
+    response['id_is_sid'] = not (pid == response['identifier'])
+    response['objectLocation'] = []
+    for loc in obj_locs.objectLocation:
+      oloc = {'url': str(loc.url),
+              'nodeIdentifier': str(loc.nodeIdentifier.value()),
+              'baseURL': str(loc.baseURL),
+              'version': list(map(str, loc.version)),
+              'preference': str(loc.preference) }
+      response['objectLocation'].append(oloc)
+  except Exception as e:
+    logger.info(e)
+    response['status']['msg'] = str(e)
+    #response['status']['code'] = e.errorCode
+  return response
+
+
+def doResolve(pid, environments, configuration):
+  ''' Resolve the provided identifier in the list of provided environments.
+
+  :param pid: Identifier to resolve
+  :param environments:  Names of one or more environments to examine
+  :param configuration: instance of D1Configuration providing lists of environments
+  :return: List of dictionaries containing results of the resolve operation in each environment
+  '''
+  logger = logging.getLogger('main')
+  if len(environments) > 1:
+    logger.warning('Checking all environments...')
+  results = []
+  for env in environments:
+    logger.debug("Checking environment: %s", env)
+    env_nodes = configuration.envNodes(env)
+    client = env_nodes.getClient(allow_redirects=False)
+
+    #if client is None:
+    #  client = cnclient_2_0.CoordinatingNodeClient_2_0(configuration.envPrimaryBaseURL(env),
+    #                                                   allow_redirects=False)
+    #else:
+    #  client.set_base_url(configuration.envPrimaryBaseURL(env))
+    logger.info("Resolving %s in %s", pid, env)
+    res = resolve(client, pid)
+    results.append({'environment': env,
+                    'resolve': res,
+                    })
+  return results
+
+def listPackageIdentifiers(pkg):
+  pids = pkg.getAggregatedPids()
+  pids.sort()
+  return pids
+
+
+def main():
+  defaults = {'format':['text', ],
+              }
+  parser = argparse.ArgumentParser(description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter)
+  parser.add_argument('-d', '--test_download',
+                      action='store_true',
+                      help='Test if resolved PIDs can be downloaded')
+  parser.add_argument('pid',
+                      nargs='?',
+                      default=None,
+                      help="Identifier to evaluate")
+  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+  logger = logging.getLogger('main')
+
+  PP = pprint.PrettyPrinter(indent=2)
+  environments = []
+  if args.environment is None or args.environment == "all":
+    environments = config.environments()
+  else:
+    environments = [ args.environment, ]
+  pids = args.pid
+  if pids is None:
+    pids = sys.stdin.read().strip().split()
+  else:
+    pids = pids.split()
+
+  format = args.format.lower()
+  if format not in defaults['format']:
+    format = 'text'
+
+  # for each ORE identifier provided
+  for pid in pids:
+    # resolve the ORE
+    results = doResolve(pid, environments, config)
+
+    # Get the ORE document
+    ore_url = results[0]['resolve']['objectLocation'][0]['url']
+    logging.info("ORE URL= %s", ore_url)
+    ore_doc = downloadDocument(ore_url)
+    pkg = d1_pyore.ResourceMap()
+    pkg.parse(data=ore_doc)
+    ore_pids = listPackageIdentifiers(pkg)
+    logging.info("References %d pids.", len(ore_pids))
+    # Resolve each aggregated PID
+    nresolved = 0
+    report = {"ore":pid,
+              "total": len(ore_pids),
+              "failed": 0,
+              "content":[]
+              }
+    for opid in ore_pids:
+      entry = {"pid": opid,
+               "status": "",
+               "error": 0
+               }
+      logging.info("Evaluating PID: %s", opid)
+      oresult = doResolve(opid, environments, config)
+      if oresult[0]['resolve']['status']['msg'] == 'OK':
+        nresolved += 1
+        entry["status"] = 200
+      else:
+        logging.error("Could not resovle PID: %s", opid)
+        logging.error("Message: %s", oresult[0]['resolve']['status']['msg'])
+        entry["status"] = 404
+        entry["error"] = oresult[0]['resolve']['status']['msg']
+        report["failed"] += 1
+      report["content"].append(entry)
+    # Report
+    print(json.dumps(report, indent=2) )
+    logging.info("Resolved {}/{} pids referenced by ORE".format(nresolved, len(ore_pids)))
+  return 0
+
+
+if __name__ == "__main__":
+  sys.exit(main())

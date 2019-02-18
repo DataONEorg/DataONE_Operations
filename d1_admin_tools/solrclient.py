@@ -4,7 +4,7 @@ import os
 import argparse
 import logging
 import logging.handlers
-import urllib
+import urllib.request, urllib.parse, urllib.error
 import requests
 import datetime
 import json
@@ -38,16 +38,17 @@ def escapeSolrQueryTerm(term):
 
 class SolrClient(object):
 
-  def __init__(self, base_url, core_name):
+  def __init__(self, base_url, core_name, select="/"):
     self.base_url = base_url
     self.core_name = core_name
+    self._select = select
     self.logger = logging.getLogger(APP_LOG)
     self.client = requests.Session()
 
 
   def doGet(self, params):
     params['wt'] = 'json'
-    url = self.base_url + "/" + self.core_name + "/select"
+    url = self.base_url + "/" + self.core_name + self._select
     response = self.client.get(url, params=params)
     data = json.loads(response.text)
     return data

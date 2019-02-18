@@ -7,6 +7,8 @@ List nodes in a DataONE environment.
 import sys
 import logging
 import argparse
+import socket
+from urllib.parse import urlparse
 import d1_admin_tools.d1_config
 import pprint
 from d1_client import cnclient_2_0
@@ -17,7 +19,7 @@ import humanize
 from d1_admin_tools import d1_nodes
 import requests
 from requests import exceptions
-import httplib
+import http.client
 
 
 def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.org/"):
@@ -54,22 +56,37 @@ def testNodePing(node_wrap):
     response = client.pingResponse()
   except exceptions.SSLError as ex:
     logging.exception(ex)
-    return {'status':'-1',
-            'ping':0,
-            'status_message':str(ex.message),
-            }
+    try:
+      return {'status':'-1',
+              'ping':0,
+              'status_message':str(ex.message),
+              }
+    except AttributeError as e2:
+      ex.message = str(ex)
+      return {'status':'-1',
+              'ping':0,
+              'status_message':str(ex.message),
+              }
+
   except exceptions.ConnectionError as ex:
     logging.exception(ex)
-    return {'status':'-2',
-            'ping':0,
-            'status_message':str(ex.message),
-            }
+    try:
+      return {'status':'-2',
+              'ping':0,
+              'status_message':str(ex.message),
+              }
+    except AttributeError as e2:
+      ex.message = str(ex)
+      return {'status':'-2',
+              'ping':0,
+              'status_message':str(ex.message),
+              }
 
   tend = time.time()
   return {
     'status': response.status_code,
     'ping':tend-tstart,
-    'status_message': httplib.responses[response.status_code],
+    'status_message': http.client.responses[response.status_code],
   }
 
 
@@ -147,7 +164,28 @@ def doListNodes(config, env, node_type='all', do_ping=False, do_listobjects=Fals
            'mn_object_count':'',
            'cn_object_count':'',
            'issue_url': '',
+           'domainName':'',
+           'ipAddress':'',
+           'CN_node_name':'',
+           'CN_operational_status': '',
+           'CN_date_operational': '',
+           'CN_date_upcoming': '',
+           'CN_date_deprecated': '',
+           'CN_logo_url': '',
            }
+    properties = node.property_
+    for property in properties:
+      k = property.key
+      v = str(property.value())
+      if k.startswith("CN_"):
+        row[k] = v
+    urlparts = urlparse(row['baseUrl'])
+    row['domainName'] = urlparts.netloc.split(":")[0]
+    try:
+      row['ipAddress'] = socket.gethostbyname(row['domainName'])
+    except socket.gaierror as e:
+      logger.warn("No ip available for %s", row['domainName'])
+      row['ipAddress'] = ''
     node_wrap = nodes.getNode(row['nodeId'])
     if node_wrap.isV2():
       row['version'] = 'v2'
@@ -217,6 +255,23 @@ def renderCSVResults(data, fields):
   for row in data['items']:
     writer.writerow(row)
 
+def generateBatchUpdateYaml(results):
+  import yaml
+  data = {"nodes":[]}
+  for row in results['items']:
+    entry = {"nodeId":str(row["nodeId"]),
+             "properties": {},
+             }
+    if row['CN_node_name'] == '':
+      entry['properties']['CN_node_name'] = str(row['name'])
+    else:
+      entry['properties']['CN_node_name'] = row['CN_node_name']
+    entry['properties']['CN_node_name'] = str(row['name'])
+    if row['state'] == 'up':
+      entry['properties']['CN_operational_status'] = "operational"
+    data["nodes"].append(entry)
+  yaml.dump(data, sys.stdout, default_flow_style=False)
+
 
 # synchronize="false" type="cn" state="up"
 def main():
@@ -225,6 +280,9 @@ def main():
   parser.add_argument('-B', '--baseurl',
                       action='store_true',
                       help='Only present base URLs of nodes')
+  parser.add_argument('-i', '--ipaddresses',
+                      action='store_true',
+                      help='Only present IP addresses of nodes (overrides -b)')
   parser.add_argument('-I', '--nodeid',
                       action='store_true',
                       help='Only present node ID of nodes (overrides -b)')
@@ -243,6 +301,10 @@ def main():
   parser.add_argument('-R', '--redmine_key',
 
                       help="Key for accessing Redmine issues")
+  parser.add_argument("-U","--update_yaml",
+                      default=False,
+                      action="store_true",
+                      help="Output YAML to use used for d1nodeprops batch update")
   parser.add_argument('--ignore_state',
                       action='store_true',
                       help="Ping regardless of node state flag")
@@ -266,6 +328,10 @@ def main():
                         do_listobjects=args.countobjects,
                         redmine_key=args.redmine_key)
 
+  if args.update_yaml:
+    generateBatchUpdateYaml(results)
+    return 0
+
   format = args.format.lower()
   if format not in ['text', 'json', 'yaml', 'xml', 'csv', 'html', ]:
     format = 'text'
@@ -279,12 +345,19 @@ def main():
     summary = []
     for result in results['items']:
       summary.append(result['baseUrl'])
+  elif args.ipaddresses:
+    summary = []
+    for result in results['items']:
+      try:
+        summary.append(result['ipAddress'])
+      except AttributeError as e:
+        logger.warn(str(e))
   if format == 'json':
     import json
     if summary is not None:
-      print(json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
+      print((json.dumps(summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
       return 0
-    print(json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING))
+    print((json.dumps(results['items'], indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
     return 0
   if format == 'yaml':
     import yaml
@@ -295,7 +368,7 @@ def main():
   if format == 'xml':
     import xml.dom.minidom
     dom = xml.dom.minidom.parseString(results['xml'])
-    print(dom.toprettyxml(indent=' '*2))
+    print((dom.toprettyxml(indent=' '*2)))
     return 0
   #text or anything else
   if not summary is None:
