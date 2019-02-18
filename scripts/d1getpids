@@ -1,6 +1,6 @@
 #!/bin/env python
 
-'''
+"""
 Evaluate presence of content synchronized to Coordinating Nodes.
 
 Retrieve PIDs, SIDs, docid, revisions, and file names directly from CN
@@ -77,7 +77,7 @@ Requires
 * fabric http://www.fabfile.org/
 
 
-'''
+"""
 
 import sys
 import logging
@@ -96,168 +96,172 @@ from jinja2 import Environment, FileSystemLoader, select_autoescape
 
 
 PSQL_READONLY_USER = "dataone_readonly"
-PSQL_DATE_FORMAT="%Y-%m-%dT%H:%M:%S.%f%z"
-DOCID_ANALYSIS = 'docid_analysis.json'
-PID_ANALYSIS = 'pid_analysis.json'
+PSQL_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
+DOCID_ANALYSIS = "docid_analysis.json"
+PID_ANALYSIS = "pid_analysis.json"
 
-#========================
-#++ markdown utilities ++
+# ========================
+# ++ markdown utilities ++
+
 
 def toMdTable(header, matrix, widths=None):
-  '''
+    """
   Return a markdown table from the provided header and 2d matrix
-  '''
-  if widths is None:
-    widths = []
-    for x in header:
-      widths.append("-"*len(x))
-  res = "| " + " | ".join(map(str, header)) + " |\n"
-  res += "| " + " | ".join(widths) + " |\n"
-  for row in matrix:
-    line = "| " + " | ".join(map(str, row)) + " |\n"
-    res += line
-  return res
+  """
+    if widths is None:
+        widths = []
+        for x in header:
+            widths.append("-" * len(x))
+    res = "| " + " | ".join(map(str, header)) + " |\n"
+    res += "| " + " | ".join(widths) + " |\n"
+    for row in matrix:
+        line = "| " + " | ".join(map(str, row)) + " |\n"
+        res += line
+    return res
 
 
 def toUnicode(a):
-  if not isinstance(a, basestring):
-    return a
-  if isinstance(a, unicode):
-    return a
-  return a.decode("utf-8")
+    if not isinstance(a, basestring):
+        return a
+    if isinstance(a, unicode):
+        return a
+    return a.decode("utf-8")
 
 
+# ==================
+# ++ Fabric Tasks ++
 
-#==================
-#++ Fabric Tasks ++
 
-def runSQLQuery(SQL, dest_file, tmp_file=None, user=PSQL_READONLY_USER, database='metacat', delimiter=' '):
-  '''
+def runSQLQuery(
+    SQL,
+    dest_file,
+    tmp_file=None,
+    user=PSQL_READONLY_USER,
+    database="metacat",
+    delimiter=" ",
+):
+    """
   Fabric task that executes SQL on postgres and retrieves the resulting output as a file.
 
   :param SQL: SQL to run, expects a table output
   :param dest_file: Local file that will contain the results
   :param tmp_file: Temporary file on remote system. Created if not specified.
   :return: Nothing
-  '''
-  logger = logging.getLogger('main')
-  if tmp_file is None:
-    tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
-  SQL = "COPY (" + SQL + ") TO STDOUT WITH (FORMAT CSV, HEADER FALSE, FORCE_QUOTE *);"
-  cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + database
-  cmd += " -P pager=off --single-transaction"
-  cmd += " --no-align -t --field-separator '" + delimiter + "' --quiet"
-  cmd += " -o " + tmp_file + " -c \"" + SQL + ";\""
-  logger.info("PSQL Command = %s", cmd)
-  run(cmd)
-  get(tmp_file, dest_file)
-  run("rm " + tmp_file)
+  """
+    logger = logging.getLogger("main")
+    if tmp_file is None:
+        tmp_file = operations.tmpFileName("/tmp/", prefix="sql", ext="txt")
+    SQL = "COPY (" + SQL + ") TO STDOUT WITH (FORMAT CSV, HEADER FALSE, FORCE_QUOTE *);"
+    cmd = "psql -h localhost -U " + PSQL_READONLY_USER + " " + database
+    cmd += " -P pager=off --single-transaction"
+    cmd += " --no-align -t --field-separator '" + delimiter + "' --quiet"
+    cmd += " -o " + tmp_file + ' -c "' + SQL + ';"'
+    logger.info("PSQL Command = %s", cmd)
+    run(cmd)
+    get(tmp_file, dest_file)
+    run("rm " + tmp_file)
 
 
 def listDataDocuments(dest_file):
-  '''
+    """
   Fabric task to retrieve a list of files managed by metacat on a CN.
 
   :param dest_file: File to contain results, one filename per line
   :return: Nothing
-  '''
-  tmp_file = operations.tmpFileName("/tmp/", prefix="metacat_files", ext="txt")
-  cmd = "ls /var/metacat/documents > {0}".format(tmp_file)
-  run(cmd)
-  cmd = "ls /var/metacat/data >> {0}".format(tmp_file)
-  run(cmd)
-  get(tmp_file, dest_file)
-  run("rm " + tmp_file)
+  """
+    tmp_file = operations.tmpFileName("/tmp/", prefix="metacat_files", ext="txt")
+    cmd = "ls /var/metacat/documents > {0}".format(tmp_file)
+    run(cmd)
+    cmd = "ls /var/metacat/data >> {0}".format(tmp_file)
+    run(cmd)
+    get(tmp_file, dest_file)
+    run("rm " + tmp_file)
 
 
-#==================
+# ==================
+
 
 class CNodeComparison(object):
-  
-  def __init__(self, dest_folder):
-    self._L = logging.getLogger(self.__class__.__name__)
-    self.dest_folder = dest_folder
-    self.db_file = os.path.join(dest_folder, "cndata.sqlite")
-    self.dbc = None
-    self.createLocalDatabase()
-    
-    
-  def getDatabaseConnection(self, force=False):
-    if self.dbc is None or force:
-      self.dbc = sqlite3.connect( self.db_file )
-    return self.dbc
+    def __init__(self, dest_folder):
+        self._L = logging.getLogger(self.__class__.__name__)
+        self.dest_folder = dest_folder
+        self.db_file = os.path.join(dest_folder, "cndata.sqlite")
+        self.dbc = None
+        self.createLocalDatabase()
 
+    def getDatabaseConnection(self, force=False):
+        if self.dbc is None or force:
+            self.dbc = sqlite3.connect(self.db_file)
+        return self.dbc
 
-  def createLocalDatabase(self):
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    cur.execute("CREATE TABLE IF NOT EXISTS metadata (k TEXT, v TEXT)")
-    cur.execute("""CREATE TABLE IF NOT EXISTS identifier (host TEXT, pid TEXT,
-      autogen TEXT, rev INTEGER, docid TEXT, nodeid TEXT, formatid TEXT);""")
-    cur.execute("""CREATE INDEX IF NOT EXISTS idx_identifier ON identifier 
-      (pid, host, docid);""")
-    cur.execute("CREATE TABLE IF NOT EXISTS files (host TEXT, filename TEXT);")
-    cur.execute("""CREATE INDEX IF NOT EXISTS idx_files ON files 
-      (filename, host);""")
-    dbc.commit()
+    def createLocalDatabase(self):
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        cur.execute("CREATE TABLE IF NOT EXISTS metadata (k TEXT, v TEXT)")
+        cur.execute(
+            """CREATE TABLE IF NOT EXISTS identifier (host TEXT, pid TEXT,
+      autogen TEXT, rev INTEGER, docid TEXT, nodeid TEXT, formatid TEXT);"""
+        )
+        cur.execute(
+            """CREATE INDEX IF NOT EXISTS idx_identifier ON identifier 
+      (pid, host, docid);"""
+        )
+        cur.execute("CREATE TABLE IF NOT EXISTS files (host TEXT, filename TEXT);")
+        cur.execute(
+            """CREATE INDEX IF NOT EXISTS idx_files ON files 
+      (filename, host);"""
+        )
+        dbc.commit()
 
+    def getMetadata(self, k):
+        self._L.debug("getMetadata %s", k)
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        cur.execute("SELECT v FROM metadata WHERE k=?", [k])
+        v = cur.fetchone()
+        self._L.debug(str(v))
+        try:
+            return json.loads(v[0])
+        except TypeError as e:
+            pass
+        return None
 
-  def getMetadata(self, k):
-    self._L.debug("getMetadata %s", k)
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    cur.execute("SELECT v FROM metadata WHERE k=?", [k])
-    v = cur.fetchone()
-    self._L.debug(str(v))
-    try:
-      return json.loads(v[0])
-    except TypeError as e:
-      pass
-    return None
+    def deleteMetadata(self, k):
+        if self.getMetadata(k) is None:
+            return
+        SQL = "DELETE FROM metadata WHERE k=?"
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        cur.execute(SQL, [k])
+        dbc.commit()
 
+    def setMetadata(self, k, v):
+        self._L.debug("set metadata %s : %s", k, str(v))
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        v_encoded = json.dumps(v, encoding="utf-8")
+        if self.getMetadata(k) is None:
+            SQL = "INSERT INTO metadata VALUES (?, ?)"
+            cur.execute(SQL, [k, v_encoded])
+        else:
+            SQL = "UPDATE metadata SET v=? WHERE k=?"
+            cur.execute(SQL, [v_encoded, k])
+        dbc.commit()
 
-  def deleteMetadata(self, k):
-    if self.getMetadata(k) is None:
-      return
-    SQL = "DELETE FROM metadata WHERE k=?"
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    cur.execute(SQL, [k] )
-    dbc.commit()
+    def writeJsonFile(self, fname, data):
+        with codecs.open(
+            os.path.join(self.dest_folder, fname), mode="wb", encoding="utf-8"
+        ) as rfile:
+            rfile.write(json.dumps(data, encoding="utf-8", sort_keys=True, indent=2))
 
+    def readJsonFile(self, fname):
+        with codecs.open(
+            os.path.join(self.dest_folder, fname), mode="rb", encoding="utf-8"
+        ) as rfile:
+            return json.load(rfile)
 
-  def setMetadata(self, k, v):
-    self._L.debug("set metadata %s : %s", k, str(v))
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    v_encoded = json.dumps(v, encoding='utf-8')
-    if self.getMetadata(k) is None:
-      SQL = "INSERT INTO metadata VALUES (?, ?)"
-      cur.execute(SQL, [k, v_encoded])
-    else:
-      SQL = "UPDATE metadata SET v=? WHERE k=?"
-      cur.execute(SQL, [v_encoded, k])
-    dbc.commit()
-
-
-  def writeJsonFile(self, fname, data):
-    with codecs.open( os.path.join(self.dest_folder, fname), 
-                      mode='wb', 
-                      encoding='utf-8' ) as rfile:
-      rfile.write( json.dumps(data, 
-                              encoding='utf-8', 
-                              sort_keys=True, indent=2 ))
-    
-  
-  def readJsonFile(self, fname):
-    with codecs.open( os.path.join(self.dest_folder, fname), 
-                      mode='rb', 
-                      encoding='utf-8' ) as rfile:
-      return json.load( rfile )
-
-
-  def getDocids(self, hosts):
-    '''
+    def getDocids(self, hosts):
+        """
     Retrieve a list of files from /var/metacat/data and
       /var/metacat/documents from each of hosts.
 
@@ -268,29 +272,27 @@ class CNodeComparison(object):
     :param hosts:
     :param dest_folder:
     :return:
-    '''
-    logger = logging.getLogger('main')
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    for host in hosts:
-      dest_file = "data_files_{0}.txt".format(host)
-      self.setMetadata("docids.{0}".format(host), dest_file)
-      execute(listDataDocuments, 
-              os.path.join(self.dest_folder, dest_file), 
-              host=host)
-      logger.info("Adding document list for %s to database...", host)
-      with open( os.path.join(self.dest_folder, dest_file), 'r') as infile:
-        for row in infile.readlines(): 
-          cur.execute("INSERT INTO files VALUES (?, ?)", 
-                      [ host, toUnicode(row.strip()) ] )
-      dbc.commit()
+    """
+        logger = logging.getLogger("main")
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        for host in hosts:
+            dest_file = "data_files_{0}.txt".format(host)
+            self.setMetadata("docids.{0}".format(host), dest_file)
+            execute(
+                listDataDocuments, os.path.join(self.dest_folder, dest_file), host=host
+            )
+            logger.info("Adding document list for %s to database...", host)
+            with open(os.path.join(self.dest_folder, dest_file), "r") as infile:
+                for row in infile.readlines():
+                    cur.execute(
+                        "INSERT INTO files VALUES (?, ?)",
+                        [host, toUnicode(row.strip())],
+                    )
+            dbc.commit()
 
-
-  def getIdentifiers(self, hosts, 
-                     node_id=None, 
-                     date_start=None, 
-                     date_end=None):
-    '''
+    def getIdentifiers(self, hosts, node_id=None, date_start=None, date_end=None):
+        """
     Retrieve a space delimited list of:
 
       PID docid rev series_id
@@ -311,198 +313,182 @@ class CNodeComparison(object):
     :param date_start: Optional starting date for match
     :param date_end: Optional ending date for match.
     :return:
-    '''
-    sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev,
+    """
+        sql_template = """SELECT identifier.guid, identifier.docid, identifier.rev,
       systemmetadata.series_id, systemmetadata.origin_member_node,
       systemmetadata.object_format FROM identifier INNER JOIN systemmetadata ON
       identifier .guid = systemmetadata.guid WHERE """
-    conditions = []
-    params = []
+        conditions = []
+        params = []
 
-    if not node_id is None:
-      if node_id.find("'") >= 0:
-        raise ValueError("Invalid character in node_id!")
-      conditions.append("origin_member_node = '%s'" % node_id)
-      params.append(node_id)
+        if not node_id is None:
+            if node_id.find("'") >= 0:
+                raise ValueError("Invalid character in node_id!")
+            conditions.append("origin_member_node = '%s'" % node_id)
+            params.append(node_id)
 
-    if not date_start is None:
-      conditions.append("date_modified >= '%s'::timestamp" % 
-         date_start.strftime(PSQL_DATE_FORMAT))
-      params.append(date_start)
+        if not date_start is None:
+            conditions.append(
+                "date_modified >= '%s'::timestamp"
+                % date_start.strftime(PSQL_DATE_FORMAT)
+            )
+            params.append(date_start)
 
-    if not date_end is None:
-      conditions.append("date_modified < '%s'::timestamp" %
-         date_end.strftime(PSQL_DATE_FORMAT))
-      params.append(date_end)
-      
-    if len(conditions) < 1:
-      raise ValueError(
-          "At least one of node_id, date_start, or date_end is required.")
+        if not date_end is None:
+            conditions.append(
+                "date_modified < '%s'::timestamp" % date_end.strftime(PSQL_DATE_FORMAT)
+            )
+            params.append(date_end)
 
-    where_clause = " AND ".join(conditions)
-    SQL = sql_template + where_clause;
-    self._L.info(SQL)
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    self.setMetadata('request.SQL', SQL)
-  
-    for host in hosts:
-      dest_file = "identifiers_{0}.txt".format(host)
-      self.setMetadata("identifiers.{0}".format(host), dest_file)
-      execute(runSQLQuery, 
-              SQL, 
-              os.path.join(self.dest_folder, dest_file),
-              host=host)
-    for host in hosts:
-      dest_file = "identifiers_{0}.txt".format(host)
-      self._L.info("Loading identifiers to local database for %s", host)
-      with open( os.path.join(self.dest_folder, dest_file) ) as id_file:
-        idreader = csv.reader(id_file)
-        for row in idreader:
-          urow =[host, ] + list(map( toUnicode, row))
-          urow[4] = urow[2]+'.'+str(urow[3])
-          cur.execute("INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);",
-              urow)    
-      dbc.commit()
+        if len(conditions) < 1:
+            raise ValueError(
+                "At least one of node_id, date_start, or date_end is required."
+            )
 
+        where_clause = " AND ".join(conditions)
+        SQL = sql_template + where_clause
+        self._L.info(SQL)
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        self.setMetadata("request.SQL", SQL)
 
-  def loadDataFromHosts(self, 
-                        hosts,
-                        node_id=None, 
-                        date_start=None, 
-                        date_end=None):
-    self.setMetadata('hosts', hosts)
-    self.getDocids(hosts)
-    self.getIdentifiers(hosts, 
-                        node_id=node_id, 
-                        date_start=date_start, 
-                        date_end=date_end)
-    return
+        for host in hosts:
+            dest_file = "identifiers_{0}.txt".format(host)
+            self.setMetadata("identifiers.{0}".format(host), dest_file)
+            execute(
+                runSQLQuery, SQL, os.path.join(self.dest_folder, dest_file), host=host
+            )
+        for host in hosts:
+            dest_file = "identifiers_{0}.txt".format(host)
+            self._L.info("Loading identifiers to local database for %s", host)
+            with open(os.path.join(self.dest_folder, dest_file)) as id_file:
+                idreader = csv.reader(id_file)
+                for row in idreader:
+                    urow = [host] + list(map(toUnicode, row))
+                    urow[4] = urow[2] + "." + str(urow[3])
+                    cur.execute(
+                        "INSERT INTO identifier VALUES (?, ?, ?, ?, ?, ?, ?);", urow
+                    )
+            dbc.commit()
 
-                        
-  def filesHereNotThere(self, host_a, host_b):
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    self._L.info("Comparing file list for %s vs %s", host_a, host_b)
-    SQL = """SELECT COUNT(*) FROM files WHERE host=? AND filename NOT IN 
+    def loadDataFromHosts(self, hosts, node_id=None, date_start=None, date_end=None):
+        self.setMetadata("hosts", hosts)
+        self.getDocids(hosts)
+        self.getIdentifiers(
+            hosts, node_id=node_id, date_start=date_start, date_end=date_end
+        )
+        return
+
+    def filesHereNotThere(self, host_a, host_b):
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        self._L.info("Comparing file list for %s vs %s", host_a, host_b)
+        SQL = """SELECT COUNT(*) FROM files WHERE host=? AND filename NOT IN 
     ( SELECT filename FROM files WHERE host=?);"""
-    cur.execute(SQL, (host_a, host_b))
-    delta = cur.fetchone()[0]
-    res = {'A': host_a,
-           'B': host_b,
-           'delta': delta,
-           'comp': []}
-    if delta > 0:
-      SQL = """SELECT filename FROM files WHERE host=? AND filename NOT IN 
+        cur.execute(SQL, (host_a, host_b))
+        delta = cur.fetchone()[0]
+        res = {"A": host_a, "B": host_b, "delta": delta, "comp": []}
+        if delta > 0:
+            SQL = """SELECT filename FROM files WHERE host=? AND filename NOT IN 
       ( SELECT filename FROM files WHERE host=?);"""
-      cur.execute(SQL, (host_a, host_b))
-      docids = cur.fetchall()
-      for entry in docids:
-        res['comp'].append(entry[0])
-    return res
+            cur.execute(SQL, (host_a, host_b))
+            docids = cur.fetchall()
+            for entry in docids:
+                res["comp"].append(entry[0])
+        return res
 
+    def docIdCounts(self):
+        hosts = self.getMetadata("hosts")
+        res = []
+        for host_a in hosts:
+            res_a = []
+            for host_b in hosts:
+                res_a.append(self.filesHereNotThere(host_a, host_b))
+            res.append(res_a)
+        return res
 
-  def docIdCounts(self):
-    hosts = self.getMetadata('hosts')
-    res = []
-    for host_a in hosts:
-      res_a = []
-      for host_b in hosts:
-        res_a.append(self.filesHereNotThere( host_a, host_b ))
-      res.append(res_a)
-    return res
-  
-  
-  def pidsHereNotThere(self, host_a, host_b ):
-    dbc = self.getDatabaseConnection()
-    cur = dbc.cursor()
-    self._L.info("Comparing PIDs for %s vs %s", host_a, host_b)
-    SQL = """SELECT COUNT(*) FROM identifier WHERE host=? AND pid NOT IN 
+    def pidsHereNotThere(self, host_a, host_b):
+        dbc = self.getDatabaseConnection()
+        cur = dbc.cursor()
+        self._L.info("Comparing PIDs for %s vs %s", host_a, host_b)
+        SQL = """SELECT COUNT(*) FROM identifier WHERE host=? AND pid NOT IN 
     ( SELECT pid FROM identifier WHERE host=?);"""
-    cur.execute(SQL, (host_a, host_b))
-    delta = cur.fetchone()[0]
-    res = {'A': host_a,
-           'B': host_b,
-           'delta': delta,
-           'comp': []}
-    if delta > 0:
-      SQL = """SELECT pid FROM identifier WHERE host=? AND pid NOT IN 
+        cur.execute(SQL, (host_a, host_b))
+        delta = cur.fetchone()[0]
+        res = {"A": host_a, "B": host_b, "delta": delta, "comp": []}
+        if delta > 0:
+            SQL = """SELECT pid FROM identifier WHERE host=? AND pid NOT IN 
       ( SELECT pid FROM identifier WHERE host=?);"""
-      cur.execute(SQL, (host_a, host_b))
-      docids = cur.fetchall()
-      for entry in docids:
-        res['comp'].append(entry[0])
-    return res
-  
-  
-  def pidCounts(self):
-    hosts = self.getMetadata('hosts')
-    res = []
-    for host_a in hosts:
-      res_a = []
-      for host_b in hosts:
-        res_a.append(self.pidsHereNotThere( host_a, host_b ))
-      res.append( res_a )
-    return res
+            cur.execute(SQL, (host_a, host_b))
+            docids = cur.fetchall()
+            for entry in docids:
+                res["comp"].append(entry[0])
+        return res
 
+    def pidCounts(self):
+        hosts = self.getMetadata("hosts")
+        res = []
+        for host_a in hosts:
+            res_a = []
+            for host_b in hosts:
+                res_a.append(self.pidsHereNotThere(host_a, host_b))
+            res.append(res_a)
+        return res
 
-  def analyzeData(self):
-    docid_counts = self.docIdCounts()
-    self.setMetadata('docid_counts', DOCID_ANALYSIS)
-    self.writeJsonFile( DOCID_ANALYSIS, docid_counts )
-    docid_counts = None
-    pid_counts = self.pidCounts()
-    self.setMetadata('pid_counts', PID_ANALYSIS)
-    self.writeJsonFile( PID_ANALYSIS, pid_counts )
+    def analyzeData(self):
+        docid_counts = self.docIdCounts()
+        self.setMetadata("docid_counts", DOCID_ANALYSIS)
+        self.writeJsonFile(DOCID_ANALYSIS, docid_counts)
+        docid_counts = None
+        pid_counts = self.pidCounts()
+        self.setMetadata("pid_counts", PID_ANALYSIS)
+        self.writeJsonFile(PID_ANALYSIS, pid_counts)
 
+    def render(self, format="text"):
+        self._L.debug("rendering to format = %s", format)
+        if format.lower() == "text":
+            return self.renderText()
 
-  def render(self, format='text'):
-    self._L.debug("rendering to format = %s", format)
-    if format.lower() == 'text':
-      return self.renderText()
+    def renderText(self):
+        def shrinkHostName(host):
+            return host.split(".")[0]
 
+        def dataToTable(hostnames, data):
+            mxlen = 0
+            for hn in hostnames:
+                if len(hn) > mxlen:
+                    mxlen = len(hn)
+            header = ["   ", " " * mxlen] + hostnames
+            matrix = []
+            i = 0
+            for host_a in hosts:
+                olin = [" "]
+                if i == 1:
+                    olin = ["A"]
+                olin.append(hostnames[i])
+                j = 0
+                for host_b in hosts:
+                    olin.append(data[i][j]["delta"])
+                    j += 1
+                matrix.append(olin)
+                i += 1
+            return header, matrix
 
-  def renderText(self):
-    
-    def shrinkHostName(host):
-      return host.split(".")[0]
-    
-    def dataToTable(hostnames, data):
-      mxlen = 0
-      for hn in hostnames:
-        if len(hn) > mxlen:
-          mxlen = len(hn)
-      header = ["   "," "*mxlen] + hostnames
-      matrix = []
-      i = 0
-      for host_a in hosts:
-        olin = [" ", ]
-        if i == 1:
-          olin = ["A", ]
-        olin.append(hostnames[i])
-        j = 0
-        for host_b in hosts:
-          olin.append( data[i][j]['delta'] ) 
-          j += 1
-        matrix.append(olin)
-        i += 1
-      return header, matrix
-      
-    hosts = self.getMetadata('hosts')
-    hostnames = list(map(shrinkHostName, hosts))
-    data = self.readJsonFile(DOCID_ANALYSIS)
-    header, matrix = dataToTable(hostnames, data)
-    print( toMdTable(header, matrix))
-    data = self.readJsonFile(PID_ANALYSIS)
-    header, matrix = dataToTable(hostnames, data)
-    print( toMdTable(header, matrix))
+        hosts = self.getMetadata("hosts")
+        hostnames = list(map(shrinkHostName, hosts))
+        data = self.readJsonFile(DOCID_ANALYSIS)
+        header, matrix = dataToTable(hostnames, data)
+        print(toMdTable(header, matrix))
+        data = self.readJsonFile(PID_ANALYSIS)
+        header, matrix = dataToTable(hostnames, data)
+        print(toMdTable(header, matrix))
 
 
 ##==============================================================================
 
 
 def main():
-  '''
+    """
   The main operation, loads supplied arguments and does the work.
 
   -A --analyze_only: analyze previously retrieved results
@@ -520,105 +506,113 @@ def main():
   Dates are parsed using dateparser, so human strings like "a week ago" are valid.
 
   :return: int for sys.exit()
-  '''
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-n', '--node_id',
+  """
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-n", "--node_id", help="Origin Node Identifier for identifiers"
+    )
+    parser.add_argument("-x", "--date_start", help="Starting date for records")
+    parser.add_argument("-y", "--date_end", help="Ending date for records")
+    parser.add_argument(
+        "-d",
+        "--dest_folder",
+        help="Folder for results, defaults to getpids_ENVIRONMENT_DATE.",
+    )
+    parser.add_argument(
+        "-H",
+        "--hosts",
+        help="Use specified comma delimited list of nodes, overrides -e",
+    )
+    parser.add_argument(
+        "-A",
+        "--analyze_only",
+        action="store_true",
+        help="Analyze previously retrieved results (-d required)",
+    )
+    parser.add_argument(
+        "-R",
+        "--render_only",
+        action="store_true",
+        help="Render previously analyzed results (-d required)",
+    )
+    args, config = d1_admin_tools.defaultScriptMain(parser)
+    logger = logging.getLogger("main")
 
-                      help='Origin Node Identifier for identifiers')
-  parser.add_argument('-x', '--date_start',
+    dest_folder = args.dest_folder
+    if dest_folder is None:
+        if args.analyze_only:
+            logger.error("dest_folder must be specified for analyze_only option.")
+            return 1
+        tnow = datetime.datetime.utcnow()
+        if args.hosts is not None:
+            dest_folder = "getpids_custom_{1}".format(tnow.strftime("%Y%m%d"))
+        else:
+            dest_folder = "getpids_{0}_{1}".format(
+                args.environment, tnow.strftime("%Y%m%d")
+            )
+        dest_folder = os.path.abspath(dest_folder)
+    logging.debug("Using destination folder: %s", dest_folder)
 
-                      help='Starting date for records')
-  parser.add_argument('-y', '--date_end',
-
-                      help='Ending date for records')
-  parser.add_argument('-d', '--dest_folder',
-
-                      help="Folder for results, defaults to getpids_ENVIRONMENT_DATE.")
-  parser.add_argument('-H', '--hosts',
-
-                      help='Use specified comma delimited list of nodes, overrides -e')
-  parser.add_argument('-A','--analyze_only',
-                      action='store_true',
-                      help="Analyze previously retrieved results (-d required)")
-  parser.add_argument('-R','--render_only',
-                      action='store_true',
-                      help="Render previously analyzed results (-d required)")
-  args, config = d1_admin_tools.defaultScriptMain(parser)
-  logger = logging.getLogger('main')
-
-  dest_folder = args.dest_folder
-  if dest_folder is None:
     if args.analyze_only:
-      logger.error("dest_folder must be specified for analyze_only option.")
-      return 1
-    tnow = datetime.datetime.utcnow()
+        logging.debug("Performing analyzeData")
+        work = CNodeComparison(dest_folder)
+        work.analyzeData()
+        return 0
+
+    if args.render_only:
+        logging.debug("Performing render")
+        work = CNodeComparison(dest_folder)
+        work.render(format=args.format)
+        return 0
+
+    if not os.path.exists(dest_folder):
+        logging.debug("Creating destination folder: %s", dest_folder)
+        os.makedirs(dest_folder)
+
+    work = CNodeComparison(dest_folder)
+
+    # createLocalDatabase(dest_folder)
+
+    date_start = None
+    date_end = None
+    if args.date_start is not None:
+        date_start = dateparser.parse(args.date_start)
+        date_str = "None"
+        if date_start is not None:
+            date_str = date_start.strftime(PSQL_DATE_FORMAT)
+        logger.info("date_start '%s' parsed as %s", args.date_start, date_str)
+    if args.date_end is not None:
+        date_end = dateparser.parse(args.date_end)
+        date_str = "None"
+        if date_end is not None:
+            date_str = date_end.strftime(PSQL_DATE_FORMAT)
+        logger.info("date_end '%s' parsed as %s", args.date_end, date_str)
+    hosts = []
     if args.hosts is not None:
-      dest_folder = "getpids_custom_{1}".format(tnow.strftime("%Y%m%d"))
+        hosts = args.hosts.split(",")
     else:
-      dest_folder = "getpids_{0}_{1}".format( args.environment,
-                                              tnow.strftime("%Y%m%d") )
-    dest_folder = os.path.abspath(dest_folder)
-  logging.debug("Using destination folder: %s", dest_folder)
+        hosts = config.hosts(args.environment)
+    results = {"hosts": hosts, "request": {}, "results": {}}
 
-  if args.analyze_only:
-    logging.debug("Performing analyzeData")
-    work = CNodeComparison(dest_folder)
-    work.analyzeData()
+    work.loadDataFromHosts(
+        hosts, node_id=args.node_id, date_start=date_start, date_end=date_end
+    )
     return 0
 
-  if args.render_only:
-    logging.debug("Performing render")
-    work = CNodeComparison(dest_folder)
-    work.render(format=args.format)
+    try:
+        doGetIdentifiersPSQL(
+            results, hosts, dest_folder, args.node_id, date_start, date_end
+        )
+    except ValueError as e:
+        logger.error(e)
+        return 1
+
+    work.loadDataFromHosts(hosts, args.node_id, date_start, date_end)
     return 0
-
-  if not os.path.exists(dest_folder):
-    logging.debug("Creating destination folder: %s", dest_folder)
-    os.makedirs(dest_folder)
-
-  work = CNodeComparison(dest_folder)
-
-  #createLocalDatabase(dest_folder)
-
-  date_start = None
-  date_end = None
-  if args.date_start is not None:
-    date_start = dateparser.parse(args.date_start)
-    date_str = "None"
-    if date_start is not None:
-      date_str = date_start.strftime(PSQL_DATE_FORMAT)
-    logger.info("date_start '%s' parsed as %s", args.date_start, date_str)
-  if args.date_end is not None:
-    date_end = dateparser.parse(args.date_end)
-    date_str = "None"
-    if date_end is not None:
-      date_str = date_end.strftime(PSQL_DATE_FORMAT)
-    logger.info("date_end '%s' parsed as %s", args.date_end, date_str)
-  hosts = []
-  if args.hosts is not None:
-    hosts = args.hosts.split(',')
-  else:
-    hosts = config.hosts(args.environment)
-  results = {"hosts": hosts,
-             "request":{},
-             "results":{}
-             }
-
-  work.loadDataFromHosts(hosts, node_id=args.node_id, date_start=date_start, date_end=date_end)
-  return 0
-
-  try:
-    doGetIdentifiersPSQL(results, hosts, dest_folder, 
-                         args.node_id, date_start, date_end)
-  except ValueError as e:
-    logger.error(e)
-    return 1
-
-  work.loadDataFromHosts(hosts, args.node_id, date_start, date_end)
-  return 0
-  #Load the identifiers for the specified constraints
-  '''
+    # Load the identifiers for the specified constraints
+    """
   doGetIdentifiersPSQL(results,
                        hosts, 
                        dest_folder, 
@@ -632,7 +626,8 @@ def main():
   with codecs.open(dest_file, mode='wb', encoding='utf-8') as dfile:
     dfile.write(json.dumps(results, encoding='utf-8'))
   return analyzeThis(dest_folder, format=args.format)
-  '''
+  """
+
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

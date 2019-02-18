@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 
-'''
+"""
 Get or Set the state of processing services on a Coordinating Node
-'''
+"""
 
 import sys
 import logging
@@ -16,158 +16,176 @@ from fabric.context_managers import env, settings
 
 DATAONE_ACCOUNT_KEY = "dataone.org-sudo"
 
-PROCESSING_PROPERTIES = {'synchronization': {'file': 'synchronization.properties',
-                                             'prop': 'Synchronization\\.active'
-                                             },
-                         'replication':{'file': 'replication.properties',
-                                        'prop': 'Replication\\.active'
-                                        },
-                         'logaggregation': {'file':'logAggregation.properties',
-                                            'prop':'LogAggregator\\.active'
-                                            }
-                         }
+PROCESSING_PROPERTIES = {
+    "synchronization": {
+        "file": "synchronization.properties",
+        "prop": "Synchronization\\.active",
+    },
+    "replication": {"file": "replication.properties", "prop": "Replication\\.active"},
+    "logaggregation": {
+        "file": "logAggregation.properties",
+        "prop": "LogAggregator\\.active",
+    },
+}
+
 
 def setDataONESudo(user, pswd):
-  '''Store sudo account and password to keystore
+    """Store sudo account and password to keystore
 
   On OS X this creates two entries in the default keychain under the name 
   "dataone.org-sudo". One entry uses the account name of "ID" to store the
   username value as the password in a well-known location. The second saves
   the username as a regular entry with account as username and password.
-  '''
-  logging.info("Saving DataONE sudo credentials for {0}".format(user))
-  keyring.set_password(DATAONE_ACCOUNT_KEY, "ID", user)
-  keyring.set_password(DATAONE_ACCOUNT_KEY, user, pswd)
+  """
+    logging.info("Saving DataONE sudo credentials for {0}".format(user))
+    keyring.set_password(DATAONE_ACCOUNT_KEY, "ID", user)
+    keyring.set_password(DATAONE_ACCOUNT_KEY, user, pswd)
 
 
 def getDataONESudo():
-  user = keyring.get_password(DATAONE_ACCOUNT_KEY, "ID")
-  pswd = keyring.get_password(DATAONE_ACCOUNT_KEY, user)
-  return (user, pswd)
+    user = keyring.get_password(DATAONE_ACCOUNT_KEY, "ID")
+    pswd = keyring.get_password(DATAONE_ACCOUNT_KEY, user)
+    return (user, pswd)
 
 
 def getProcessingServiceState(service):
-  '''
-  '''
-  service = service.lower()
-  propfile = os.path.join("/etc/dataone/process/", PROCESSING_PROPERTIES[service]['file'])
-  cmd = "grep \"" + PROCESSING_PROPERTIES[service]['prop'] + "\" " + propfile
-  res = run(cmd)
-  return res
+    """
+  """
+    service = service.lower()
+    propfile = os.path.join(
+        "/etc/dataone/process/", PROCESSING_PROPERTIES[service]["file"]
+    )
+    cmd = 'grep "' + PROCESSING_PROPERTIES[service]["prop"] + '" ' + propfile
+    res = run(cmd)
+    return res
 
 
 def setProcessingServiceState(service, state):
-  service = service.lower()
-  if service not in list(PROCESSING_PROPERTIES.keys()):
-    raise ValueError("Unknown service: {0}".format(service))
-  propfile = os.path.join("/etc/dataone/process/", PROCESSING_PROPERTIES[service]['file'])
-  state = state.upper()
-  if state not in ['TRUE', 'FALSE']:
-    raise ValueError("Bad state for service: {0}".format(state))
-  # s/^\(Synchronization\.active\=\).*/\1TRUE/'
-  cmd = "sed -i 's/^\(" + PROCESSING_PROPERTIES[service]['prop'] + "\=\).*/\\1" + state + "/' " + propfile
-  sudo(cmd)
-  return getProcessingServiceState(service)
+    service = service.lower()
+    if service not in list(PROCESSING_PROPERTIES.keys()):
+        raise ValueError("Unknown service: {0}".format(service))
+    propfile = os.path.join(
+        "/etc/dataone/process/", PROCESSING_PROPERTIES[service]["file"]
+    )
+    state = state.upper()
+    if state not in ["TRUE", "FALSE"]:
+        raise ValueError("Bad state for service: {0}".format(state))
+    # s/^\(Synchronization\.active\=\).*/\1TRUE/'
+    cmd = (
+        "sed -i 's/^\("
+        + PROCESSING_PROPERTIES[service]["prop"]
+        + "\=\).*/\\1"
+        + state
+        + "/' "
+        + propfile
+    )
+    sudo(cmd)
+    return getProcessingServiceState(service)
 
 
 def getSynchronizationEnabled():
-  return getProcessingServiceState('synchronization')
+    return getProcessingServiceState("synchronization")
 
 
 def getReplicationEnabled():
-  return getProcessingServiceState('replication')
+    return getProcessingServiceState("replication")
 
 
 def getLogAggregationEnabled():
-  return getProcessingServiceState('logaggregation')
+    return getProcessingServiceState("logaggregation")
 
 
 def setSynchronizationEnabled(state):
-  '''Set active state in synchronization.properties
+    """Set active state in synchronization.properties
 
   Arguments:
     state (str): "TRUE" or "FALSE", new setting for Synchronization.active
-  '''
-  print(setProcessingServiceState('synchronization', state))
+  """
+    print(setProcessingServiceState("synchronization", state))
 
 
 def setReplicationEnabled(state):
-  '''Set active state in replication.properties
+    """Set active state in replication.properties
 
   Arguments:
     state (str): "TRUE" or "FALSE", new setting for Replication.active
-  '''
-  print(setProcessingServiceState('replication', state))
+  """
+    print(setProcessingServiceState("replication", state))
 
 
 def setLogAggregationEnabled(state):
-  '''Set active state in logAggregation.properties
+    """Set active state in logAggregation.properties
 
   Arguments:
     state (str): "TRUE" or "FALSE", new setting for LogAggregator.active
-  '''
-  print(setProcessingServiceState('logaggregation', state))
+  """
+    print(setProcessingServiceState("logaggregation", state))
 
 
 def setProcessingServicesEnabled(state):
-  '''Set active state service properties for sync, replication, log aggregation
+    """Set active state service properties for sync, replication, log aggregation
 
   Sets the "active" property for each of the DataONE services to the specified
   value.
 
   Arguments:
     state (str): "TRUE" or "FALSE", new setting for all services active property
-  '''
-  if state not in ("TRUE", "FALSE"):
-    raise ValueError("Valid values are TRUE or FALSE only")
-  setSynchronizationEnabled(state)
-  setReplicationEnabled(state)
-  setLogAggregationEnabled(state)
+  """
+    if state not in ("TRUE", "FALSE"):
+        raise ValueError("Valid values are TRUE or FALSE only")
+    setSynchronizationEnabled(state)
+    setReplicationEnabled(state)
+    setLogAggregationEnabled(state)
 
 
 def getProcessingServicesEnabled():
-  res = {}
-  res['synchronization'] = getSynchronizationEnabled()
-  res['replication'] = getReplicationEnabled()
-  res['logaggregation'] = getLogAggregationEnabled()
-  return res
+    res = {}
+    res["synchronization"] = getSynchronizationEnabled()
+    res["replication"] = getReplicationEnabled()
+    res["logaggregation"] = getLogAggregationEnabled()
+    return res
 
 
 def main():
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-S', '--set_state',
-
-                      help="Set services state (TRUE or FALSE)")
-  parser.add_argument('-H','--host',
-
-                      help="Host name of CN to set state (overrides -e)")
-  args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
-  host = config.envPrimaryHost(args.environment)
-  if args.host is not None:
-    host = args.host
-  if args.set_state is not None:
-    if args.set_state not in ['TRUE','FALSE']:
-      print("Error: value for set_state must be TRUE or FALSE only, not {0}.".format(args.set_state))
-      return 1
-    logging.info("Setting state for processing services on %s to %s", host, args.set_state)
-    usrpass = getDataONESudo()
-    if usrpass[1] is None:
-      usrname = getpass("Username for sudo operation:")
-      prompt = "Password for operation that requires sudo: "
-      password = getpass(prompt)
-      setDataONESudo(usrname, password)
-      env.password = password
-    else:
-      env.password = usrpass[1]
-    execute(setProcessingServicesEnabled, args.set_state, host=host)
-  with settings(
-      hide('warnings', 'running', 'stdout', 'stderr'),
-  ):
-    res = execute(getProcessingServicesEnabled, host=host)
-  print("Processing states for {0}".format(host))
-  print("  {synchronization}\n  {replication}\n  {logaggregation}\n".format(**res[host]))
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("-S", "--set_state", help="Set services state (TRUE or FALSE)")
+    parser.add_argument(
+        "-H", "--host", help="Host name of CN to set state (overrides -e)"
+    )
+    args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
+    host = config.envPrimaryHost(args.environment)
+    if args.host is not None:
+        host = args.host
+    if args.set_state is not None:
+        if args.set_state not in ["TRUE", "FALSE"]:
+            print(
+                "Error: value for set_state must be TRUE or FALSE only, not {0}.".format(
+                    args.set_state
+                )
+            )
+            return 1
+        logging.info(
+            "Setting state for processing services on %s to %s", host, args.set_state
+        )
+        usrpass = getDataONESudo()
+        if usrpass[1] is None:
+            usrname = getpass("Username for sudo operation:")
+            prompt = "Password for operation that requires sudo: "
+            password = getpass(prompt)
+            setDataONESudo(usrname, password)
+            env.password = password
+        else:
+            env.password = usrpass[1]
+        execute(setProcessingServicesEnabled, args.set_state, host=host)
+    with settings(hide("warnings", "running", "stdout", "stderr")):
+        res = execute(getProcessingServicesEnabled, host=host)
+    print("Processing states for {0}".format(host))
+    print(
+        "  {synchronization}\n  {replication}\n  {logaggregation}\n".format(**res[host])
+    )
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

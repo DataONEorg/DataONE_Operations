@@ -55,26 +55,32 @@ import d1_common.types.exceptions
 from d1_client import cnclient
 
 
-#==============================================================================
+# ==============================================================================
 # Constants used in app
 
-JSON_DATETIME_FORMAT = '%Y-%m-%dT%H:%M:%SZ'
+JSON_DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 DEFAULT_DOWNLOAD_TIMEOUT = 5
 DEFAULT_DOWNLOAD_MAXBYTES = 4096
 DEFAULT_PYXB_TYPECAST = str
-DEFAULT_SOLR_FIELD_TYPE= 'string'
+DEFAULT_SOLR_FIELD_TYPE = "string"
 
-DEFAULT_CREDENTIALS=os.path.join(os.path.expanduser('~'), ".dataone/gspread-credentials.json")
-DEFAULT_CREDENTIALS=os.path.join(os.path.expanduser('~'), ".dataone/gdrive/general-gspread-64647417dca7.json")
+DEFAULT_CREDENTIALS = os.path.join(
+    os.path.expanduser("~"), ".dataone/gspread-credentials.json"
+)
+DEFAULT_CREDENTIALS = os.path.join(
+    os.path.expanduser("~"), ".dataone/gdrive/general-gspread-64647417dca7.json"
+)
 
-#==============================================================================
+# ==============================================================================
 # Utility methods
 
-#TODO: support authenticated request
-def testDownload(url,
-                 terminate_secs=DEFAULT_DOWNLOAD_TIMEOUT,
-                 terminate_max_bytes=DEFAULT_DOWNLOAD_MAXBYTES):
-  """
+# TODO: support authenticated request
+def testDownload(
+    url,
+    terminate_secs=DEFAULT_DOWNLOAD_TIMEOUT,
+    terminate_max_bytes=DEFAULT_DOWNLOAD_MAXBYTES,
+):
+    """
   Test GET operation, terminating the request
   
   Performs a GET operation on the supplied URL and terminates the response after terminate_secs seconds
@@ -87,39 +93,40 @@ def testDownload(url,
 
   Returns: status code, -1 if connection timed out on try; -2 on connection error 
   """
-  _l = logging.getLogger( inspect.currentframe().f_code.co_name )
-  status_code = -1
-  try:
-    with closing(requests.get(url, timeout=terminate_secs, stream=True)) as r:
-      data = ''
-      total_bytes = 0
-      tstart = time.time()
-      try:
-        for data in r.iter_content():
-          total_bytes += len(data)
-          if total_bytes > terminate_max_bytes:
-            _l.info("Request terminated by maximum bytes")
-            raise StopIteration()
-          if time.time() - tstart > terminate_secs:
-            _l.info("Request terminated by total time")
-            raise StopIteration()
-      except StopIteration:
-        pass
-      status_code = r.status_code
-  except requests.exceptions.Timeout as e:
-    _l.info("Request timed out on connection")
+    _l = logging.getLogger(inspect.currentframe().f_code.co_name)
     status_code = -1
-  except requests.exceptions.ConnectionError as e:
-    _l.info("Request failed with connection error: %s", str(e))
-    status_code = -2
-  return status_code
+    try:
+        with closing(requests.get(url, timeout=terminate_secs, stream=True)) as r:
+            data = ""
+            total_bytes = 0
+            tstart = time.time()
+            try:
+                for data in r.iter_content():
+                    total_bytes += len(data)
+                    if total_bytes > terminate_max_bytes:
+                        _l.info("Request terminated by maximum bytes")
+                        raise StopIteration()
+                    if time.time() - tstart > terminate_secs:
+                        _l.info("Request terminated by total time")
+                        raise StopIteration()
+            except StopIteration:
+                pass
+            status_code = r.status_code
+    except requests.exceptions.Timeout as e:
+        _l.info("Request timed out on connection")
+        status_code = -1
+    except requests.exceptions.ConnectionError as e:
+        _l.info("Request failed with connection error: %s", str(e))
+        status_code = -2
+    return status_code
 
 
-#==============================================================================
+# ==============================================================================
 # Methods to assist conversion of PyxB structures to native Python
 
+
 def pyxbV(v, castas=DEFAULT_PYXB_TYPECAST):
-  '''
+    """
   Return python value from provided pyxb value
   
   Args:
@@ -128,72 +135,69 @@ def pyxbV(v, castas=DEFAULT_PYXB_TYPECAST):
 
   Returns:
     native python value
-  '''
-  pv = None
-  if v is None:
-    return pv
-  if hasattr(v, 'value'):
-    pv = v.value()
-  else:
-    pv = v
-  try:
-    rv = castas( pv )
-  except ValueError as e:
-    # fall back to unicode representation of value
-    rv = str( pv )
-  return rv
+  """
+    pv = None
+    if v is None:
+        return pv
+    if hasattr(v, "value"):
+        pv = v.value()
+    else:
+        pv = v
+    try:
+        rv = castas(pv)
+    except ValueError as e:
+        # fall back to unicode representation of value
+        rv = str(pv)
+    return rv
 
 
 def checksumToStruct(c):
-  '''
+    """
   
   Args:
     c: 
 
   Returns:
 
-  '''
-  o = {'v': pyxbV(c),
-       'algorithm': pyxbV(c.algorithm)}
-  return o
+  """
+    o = {"v": pyxbV(c), "algorithm": pyxbV(c.algorithm)}
+    return o
 
 
 def accessRuleToStruct(a):
-  '''
+    """
   
   Args:
     a: 
 
   Returns:
 
-  '''
-  o = {'subject': [],
-       'permission': [],
-       }
-  for subject in a.subject:
-    o['subject'].append(pyxbV(subject))
-  for permission in a.permission:
-    o['permission'].append(pyxbV(permission))
-  return o
+  """
+    o = {"subject": [], "permission": []}
+    for subject in a.subject:
+        o["subject"].append(pyxbV(subject))
+    for permission in a.permission:
+        o["permission"].append(pyxbV(permission))
+    return o
 
 
 def accessPolicyToStruct(p):
-  '''
+    """
   
   Args:
     p: 
 
   Returns:
 
-  '''
-  o = []
-  for access_rule in p.allow:
-    o.append(accessRuleToStruct(access_rule))
-  return o
+  """
+    o = []
+    for access_rule in p.allow:
+        o.append(accessRuleToStruct(access_rule))
+    return o
 
 
 def replicationPolicyToStruct(r):
-  '''
+    """
   Generate a native python structure from ReplicationPolicy
   
   Args:
@@ -201,21 +205,22 @@ def replicationPolicyToStruct(r):
 
   Returns:
     Python dict mimicking ReplicationPolicy
-  '''
-  o = {'replicationAllowed': pyxbV(r.replicationAllowed, bool),
-       'numberReplicas': pyxbV(r.numberReplicas, int),
-       'preferredMemberNode': [],
-       'blockedMemberNode':[],
-       }
-  for node in r.preferredMemberNode:
-    o['preferredMemberNode'].append(pyxbV(node))
-  for node in r.preferredMemberNode:
-    o['blockedMemberNode'].append(pyxbV(node))
-  return o
+  """
+    o = {
+        "replicationAllowed": pyxbV(r.replicationAllowed, bool),
+        "numberReplicas": pyxbV(r.numberReplicas, int),
+        "preferredMemberNode": [],
+        "blockedMemberNode": [],
+    }
+    for node in r.preferredMemberNode:
+        o["preferredMemberNode"].append(pyxbV(node))
+    for node in r.preferredMemberNode:
+        o["blockedMemberNode"].append(pyxbV(node))
+    return o
 
 
 def systemMetadataToStruct(s):
-  '''
+    """
   Generate a hierarchical dict that mimics the provided System Metadata
   
   Args:
@@ -223,52 +228,56 @@ def systemMetadataToStruct(s):
 
   Returns:
     Python dict mimicking SystemMetadata 
-  '''
-  logging.debug("Sysmeta to Struct: {0}".format(s))
-  o = {}
-  try:
-    o = {'serialVersion':pyxbV(s.serialVersion, int),
-         'identifier': pyxbV(s.identifier),
-         'formatId': pyxbV(s.formatId),
-         'size': pyxbV(s.size, int),
-         'checksum': checksumToStruct(s.checksum),
-         'submitter': pyxbV(s.submitter),
-         'rightsHolder': pyxbV(s.rightsHolder),
-         'accessPolicy': accessPolicyToStruct(s.accessPolicy),
-         'obsoletes': pyxbV(s.obsoletes),
-         'obsoletedBy': pyxbV(s.obsoletedBy),
-         'archived': pyxbV(s.archived, bool),
-         'dateuploaded': pyxbV(s.dateUploaded),
-         'dateSysMetadataModified': pyxbV(s.dateSysMetadataModified),
-         'originMemberNode': pyxbV(s.originMemberNode),
-         'authoritativeMemberNode': pyxbV(s.authoritativeMemberNode),
-         'replica': []
-         }
-  except Exception as e:
-    logging.error(e)
-  try:
-    o['replicationPolicy'] =replicationPolicyToStruct(s.replicationPolicy)
-  except Exception as e:
-    logging.error(e)
-  try:
-    o['seriesId'] = pyxbV(s.seriesId)
-  except Exception as e:
-    logging.error(e)
-  try:
-    o['mediaType'] = None
-    o['fileName'] = pyxbV(s.fileName)
-  except Exception as e:
-    logging.error(e)
-  for replica in s.replica:
-    o['replica'].append({'replicaMemberNode': pyxbV(replica.replicaMemberNode),
-                         'replicationStatus': pyxbV(replica.replicationStatus),
-                         'replicaVerified': pyxbV(replica.replicaVerified),
-                         })
-  return o
+  """
+    logging.debug("Sysmeta to Struct: {0}".format(s))
+    o = {}
+    try:
+        o = {
+            "serialVersion": pyxbV(s.serialVersion, int),
+            "identifier": pyxbV(s.identifier),
+            "formatId": pyxbV(s.formatId),
+            "size": pyxbV(s.size, int),
+            "checksum": checksumToStruct(s.checksum),
+            "submitter": pyxbV(s.submitter),
+            "rightsHolder": pyxbV(s.rightsHolder),
+            "accessPolicy": accessPolicyToStruct(s.accessPolicy),
+            "obsoletes": pyxbV(s.obsoletes),
+            "obsoletedBy": pyxbV(s.obsoletedBy),
+            "archived": pyxbV(s.archived, bool),
+            "dateuploaded": pyxbV(s.dateUploaded),
+            "dateSysMetadataModified": pyxbV(s.dateSysMetadataModified),
+            "originMemberNode": pyxbV(s.originMemberNode),
+            "authoritativeMemberNode": pyxbV(s.authoritativeMemberNode),
+            "replica": [],
+        }
+    except Exception as e:
+        logging.error(e)
+    try:
+        o["replicationPolicy"] = replicationPolicyToStruct(s.replicationPolicy)
+    except Exception as e:
+        logging.error(e)
+    try:
+        o["seriesId"] = pyxbV(s.seriesId)
+    except Exception as e:
+        logging.error(e)
+    try:
+        o["mediaType"] = None
+        o["fileName"] = pyxbV(s.fileName)
+    except Exception as e:
+        logging.error(e)
+    for replica in s.replica:
+        o["replica"].append(
+            {
+                "replicaMemberNode": pyxbV(replica.replicaMemberNode),
+                "replicationStatus": pyxbV(replica.replicationStatus),
+                "replicaVerified": pyxbV(replica.replicaVerified),
+            }
+        )
+    return o
 
 
 def objectLocationListToStruct(l):
-  '''
+    """
   Generate a python native struct from an objectLocationList
   
   Args:
@@ -276,27 +285,28 @@ def objectLocationListToStruct(l):
 
   Returns:
     Python dict mimicking ObjectLocationList
-  '''
-  o = {'identifier': pyxbV(l.identifier),
-       'objectLocation': []}
-  for loc in l.objectLocation:
-    res = {'nodeIdentifier': pyxbV(loc.nodeIdentifier),
-           'baseURL': pyxbV(loc.baseURL),
-           'version': [],
-           'url': pyxbV(loc.url),
-           'preference': pyxbV(loc.preference)
-           }
-    for v in loc.version:
-      res['version'].append(pyxbV(v))
-    o['objectLocation'].append(res)
-  return o
+  """
+    o = {"identifier": pyxbV(l.identifier), "objectLocation": []}
+    for loc in l.objectLocation:
+        res = {
+            "nodeIdentifier": pyxbV(loc.nodeIdentifier),
+            "baseURL": pyxbV(loc.baseURL),
+            "version": [],
+            "url": pyxbV(loc.url),
+            "preference": pyxbV(loc.preference),
+        }
+        for v in loc.version:
+            res["version"].append(pyxbV(v))
+        o["objectLocation"].append(res)
+    return o
 
 
 # ==============================================================================
 # Solr utilities
 
+
 def escapeSolrQueryTerm(term):
-  '''
+    """
   Escape a query term for a solr query.
 
   These characters are reserved in solr queries::
@@ -308,35 +318,35 @@ def escapeSolrQueryTerm(term):
 
   Returns:
     Escaped term
-  '''
+  """
 
-  reserved = [
-    '+',
-    '-',
-    '&',
-    '|',
-    '!',
-    '(',
-    ')',
-    '{',
-    '}',
-    '[',
-    ']',
-    '^',
-    '"',
-    '~',
-    '*',
-    '?',
-    ':',
-  ]
-  term = term.replace('\\', '\\\\')
-  for c in reserved:
-    term = term.replace(c, "\%s" % c)
-  return term
+    reserved = [
+        "+",
+        "-",
+        "&",
+        "|",
+        "!",
+        "(",
+        ")",
+        "{",
+        "}",
+        "[",
+        "]",
+        "^",
+        '"',
+        "~",
+        "*",
+        "?",
+        ":",
+    ]
+    term = term.replace("\\", "\\\\")
+    for c in reserved:
+        term = term.replace(c, "\%s" % c)
+    return term
 
 
 def prepareSolrQueryTerm(term, solr_type=DEFAULT_SOLR_FIELD_TYPE):
-  '''
+    """
   Prepare a query term for inclusion in a query.  
   
   This escapes the term and if necessary, wraps the term in quotes.
@@ -347,142 +357,144 @@ def prepareSolrQueryTerm(term, solr_type=DEFAULT_SOLR_FIELD_TYPE):
 
   Returns:
     
-  '''
-  if term == "*":
+  """
+    if term == "*":
+        return term
+    addstar = False
+    if term[len(term) - 1] == "*":
+        addstar = True
+        term = term[0 : len(term) - 1]
+    term = escapeSolrQueryTerm(term)
+    if addstar:
+        term = "%s*" % term
+    if solr_type in ["string", "text", "text_ws"]:
+        return '"%s"' % term
     return term
-  addstar = False
-  if term[len(term) - 1] == '*':
-    addstar = True
-    term = term[0:len(term) - 1]
-  term = escapeSolrQueryTerm(term)
-  if addstar:
-    term = '%s*' % term
-  if solr_type in ['string', 'text', 'text_ws']:
-    return '"%s"' % term
-  return term
 
 
+def doGetSolrFields(base_url, core="solr"):
+    client = cnclient.CoordinatingNodeClient(base_url)
+    raw_response = client.getQueryEngineDescriptionResponse(core)
+    response = client._read_dataone_type_response(
+        raw_response, "QueryEngineDescription"
+    )
 
-def doGetSolrFields(base_url, core='solr'):
-  client = cnclient.CoordinatingNodeClient(base_url)
-  raw_response = client.getQueryEngineDescriptionResponse(core)
-  response = client._read_dataone_type_response(raw_response,
-                                                'QueryEngineDescription')
-
-  results = {'base_url': base_url,
-             'fields': [],
-             'xml': raw_response.text}
-  for qf in response.queryField:
-    f = {'name': qf.name,
-         'description': " ".join(qf.description),
-         'type': qf.type,
-         'searchable': qf.searchable,
-         'returnable': qf.returnable,
-         'sortable': qf.sortable,
-         'multivalued': qf.multivalued,
-         }
-    results['fields'].append(f)
-  return results
-
+    results = {"base_url": base_url, "fields": [], "xml": raw_response.text}
+    for qf in response.queryField:
+        f = {
+            "name": qf.name,
+            "description": " ".join(qf.description),
+            "type": qf.type,
+            "searchable": qf.searchable,
+            "returnable": qf.returnable,
+            "sortable": qf.sortable,
+            "multivalued": qf.multivalued,
+        }
+        results["fields"].append(f)
+    return results
 
 
-#==============================================================================
+# ==============================================================================
 # Custom Exceptions
 
+
 class TerminateAnalysisException(Exception):
-  pass
-
-#==============================================================================
-
-class D1PIDDescribe(object):
-  '''
-  Build a description of an identifier.
-  '''
-
-  def __init__(self, pid):
-    self._l = logging.getLogger(self.__class__.__name__)
-    self.data = {'id': pid,                          #submitted ID
-                 'pid': None,                        #PID determined
-                 'sid': None,                        #SID determined, or None
-                 'system_metadata':{'status': 404,  #System Metadata
-                                    'o': None,
-                                    'xml': None,},
-                 'resolve':{'status': 404,          #Resolve response
-                            'o': None,
-                            'xml': None},
-                 'downloads': None,                  #Number of downloads
-                 'index':{'status': 404,            #Index document associated with this
-                          'o': None,
-                          'xml': None},
-                 'related':[]                        #Related content, list of (predicate, object)
-                 }
-
-  def doCheckAccess(self, client):
     pass
 
 
-  def doResolve(self, client):
-    self._l.info( inspect.currentframe().f_code.co_name + " @ " + client._base_url)
-    try:
-      res = client.resolveResponse( self.data['id'] )
-      obj_locs = client._read_dataone_type_response(
-        res, 'ObjectLocationList', response_is_303_redirect=True
-      )
-      self.data['resolve']['o'] = objectLocationListToStruct( obj_locs )
-      xml = ''
-      #if hasattr(res, 'toxml'):
-      #  xml = res.toxml()
-      #else:
-      #  dom = res.toDOM(None)
-      #  xml = dom.toprettyxml(2 * u' ')
-      self.data['resolve']['xml'] = xml
-      self.data['resolve']['status'] = res.status_code
-    except d1_common.types.exceptions.NotFound:
-      self.data['resolve']['status'] = 404
+# ==============================================================================
 
 
-  def doGetSystemMetadata(self, client):
-    self._l.info( inspect.currentframe().f_code.co_name + " @ " + client._base_url)
-    sysmeta = {}
-    try:
-      res = client.getSystemMetadata( self.data['id'] )
-      sysmeta['o'] = systemMetadataToStruct( res )
-      xml = ''
-      if hasattr(res, 'toxml'):
-        xml = res.toxml()
-      else:
-        dom = res.toDOM(None)
-        xml = dom.toprettyxml(2 * ' ')
-      sysmeta['xml'] = xml
-      sysmeta['status'] = 0
-      return sysmeta
-    except d1_common.types.exceptions.NotFound:
-      sysmeta['status'] = 404
-      return sysmeta
-      raise TerminateAnalysisException("No System Metadata for object.")
-    except d1_common.types.exceptions.ServiceFailure:
-      sysmeta['status'] = 500
-      return sysmeta
-      raise TerminateAnalysisException("Service failure getting system metadata for object!")
-    except d1_common.types.exceptions.NotAuthorized:
-      sysmeta['status'] = 401
-      return sysmeta
-      raise TerminateAnalysisException("Not authorized to access object.")
-    finally:
-      return sysmeta
+class D1PIDDescribe(object):
+    """
+  Build a description of an identifier.
+  """
 
+    def __init__(self, pid):
+        self._l = logging.getLogger(self.__class__.__name__)
+        self.data = {
+            "id": pid,  # submitted ID
+            "pid": None,  # PID determined
+            "sid": None,  # SID determined, or None
+            "system_metadata": {
+                "status": 404,  # System Metadata
+                "o": None,
+                "xml": None,
+            },
+            "resolve": {"status": 404, "o": None, "xml": None},  # Resolve response
+            "downloads": None,  # Number of downloads
+            "index": {
+                "status": 404,  # Index document associated with this
+                "o": None,
+                "xml": None,
+            },
+            "related": [],  # Related content, list of (predicate, object)
+        }
 
-  def doCheckDownload(self, client):
-    self._l.info( inspect.currentframe().f_code.co_name )
-    if self.data['resolve']['status'] == 404:
-      return
-    for loc in self.data['resolve']['o']['objectLocation']:
-      url = loc['url']
-      loc['status'] = testDownload(url)
+    def doCheckAccess(self, client):
+        pass
 
+    def doResolve(self, client):
+        self._l.info(inspect.currentframe().f_code.co_name + " @ " + client._base_url)
+        try:
+            res = client.resolveResponse(self.data["id"])
+            obj_locs = client._read_dataone_type_response(
+                res, "ObjectLocationList", response_is_303_redirect=True
+            )
+            self.data["resolve"]["o"] = objectLocationListToStruct(obj_locs)
+            xml = ""
+            # if hasattr(res, 'toxml'):
+            #  xml = res.toxml()
+            # else:
+            #  dom = res.toDOM(None)
+            #  xml = dom.toprettyxml(2 * u' ')
+            self.data["resolve"]["xml"] = xml
+            self.data["resolve"]["status"] = res.status_code
+        except d1_common.types.exceptions.NotFound:
+            self.data["resolve"]["status"] = 404
 
-  def doGetIndexDocument(self, args, client):
-    '''
+    def doGetSystemMetadata(self, client):
+        self._l.info(inspect.currentframe().f_code.co_name + " @ " + client._base_url)
+        sysmeta = {}
+        try:
+            res = client.getSystemMetadata(self.data["id"])
+            sysmeta["o"] = systemMetadataToStruct(res)
+            xml = ""
+            if hasattr(res, "toxml"):
+                xml = res.toxml()
+            else:
+                dom = res.toDOM(None)
+                xml = dom.toprettyxml(2 * " ")
+            sysmeta["xml"] = xml
+            sysmeta["status"] = 0
+            return sysmeta
+        except d1_common.types.exceptions.NotFound:
+            sysmeta["status"] = 404
+            return sysmeta
+            raise TerminateAnalysisException("No System Metadata for object.")
+        except d1_common.types.exceptions.ServiceFailure:
+            sysmeta["status"] = 500
+            return sysmeta
+            raise TerminateAnalysisException(
+                "Service failure getting system metadata for object!"
+            )
+        except d1_common.types.exceptions.NotAuthorized:
+            sysmeta["status"] = 401
+            return sysmeta
+            raise TerminateAnalysisException("Not authorized to access object.")
+        finally:
+            return sysmeta
+
+    def doCheckDownload(self, client):
+        self._l.info(inspect.currentframe().f_code.co_name)
+        if self.data["resolve"]["status"] == 404:
+            return
+        for loc in self.data["resolve"]["o"]["objectLocation"]:
+            url = loc["url"]
+            loc["status"] = testDownload(url)
+
+    def doGetIndexDocument(self, args, client):
+        """
     Retrieves the solr index document for the object.
     
     Populates self.data['index'] with the solr document
@@ -492,56 +504,49 @@ class D1PIDDescribe(object):
 
     Returns:
       Nothing
-    '''
-    self._l.info(inspect.currentframe().f_code.co_name)
-    query_engine = 'solr'
-    pid = prepareSolrQueryTerm(self.data['pid'])
-    q = {'q': 'id:{0}'.format(pid),
-         'fl': '*',
-         'wt': 'json',
-         }
-    response = client.queryResponse(query_engine, "/", query=q)
-    self.data['index']['status'] = response.status_code
-    content = json.loads(response.content)
-    self.data['index']['o'] = content['response']
+    """
+        self._l.info(inspect.currentframe().f_code.co_name)
+        query_engine = "solr"
+        pid = prepareSolrQueryTerm(self.data["pid"])
+        q = {"q": "id:{0}".format(pid), "fl": "*", "wt": "json"}
+        response = client.queryResponse(query_engine, "/", query=q)
+        self.data["index"]["status"] = response.status_code
+        content = json.loads(response.content)
+        self.data["index"]["o"] = content["response"]
 
+    def evaluate(self, args, client):
+        self._l.info(inspect.currentframe().f_code.co_name)
+        self.data["generated_date"] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
+        try:
+            self.data["system_metadata"] = self.doGetSystemMetadata(client)
+            self.doResolve(client)
+            self.doCheckDownload(client)
+            self.doCheckAccess(client)
+            self.data["pid"] = self.data["resolve"]["o"]["identifier"]
+            self.data["sid"] = self.data["system_metadata"]["o"]["seriesId"]
+            if args.check_index:
+                self.doGetIndexDocument(args, client)
+        except TerminateAnalysisException as e:
+            self._l.warn("Evaluation terminated: %s", e)
 
-  def evaluate(self, args, client):
-    self._l.info(inspect.currentframe().f_code.co_name)
-    self.data['generated_date'] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
-    try:
-      self.data['system_metadata'] = self.doGetSystemMetadata(client)
-      self.doResolve(client)
-      self.doCheckDownload(client)
-      self.doCheckAccess(client)
-      self.data['pid'] = self.data['resolve']['o']['identifier']
-      self.data['sid'] = self.data['system_metadata']['o']['seriesId']
-      if args.check_index:
-        self.doGetIndexDocument(args, client)
-    except TerminateAnalysisException as e:
-      self._l.warn("Evaluation terminated: %s", e)
+    def dlTest(self, args, env_nodes):
+        self._l.info(inspect.currentframe().f_code.co_name)
+        self.data["generated_date"] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
+        cn_client = env_nodes.getClient()
+        try:
+            self.doResolve(cn_client)
+            if args.testdownload:
+                self.doCheckDownload(cn_client)
+            if self.data["resolve"]["status"] != 404:
+                self.data["pid"] = self.data["resolve"]["o"]["identifier"]
+                if args.check_index:
+                    self.doGetIndexDocument(args, cn_client)
 
+        except TerminateAnalysisException as e:
+            self._l.warning("Evaluation terminated: %s", e)
 
-  def dlTest(self, args, env_nodes):
-    self._l.info(inspect.currentframe().f_code.co_name)
-    self.data['generated_date'] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
-    cn_client = env_nodes.getClient()
-    try:
-      self.doResolve(cn_client)
-      if args.testdownload:
-        self.doCheckDownload(cn_client)
-      if self.data['resolve']['status'] != 404:
-        self.data['pid'] = self.data['resolve']['o']['identifier']
-        if args.check_index:
-          self.doGetIndexDocument(args, cn_client)
-
-    except TerminateAnalysisException as e:
-      self._l.warning("Evaluation terminated: %s", e)
-
-
-
-  def crawlPid(self, args, env_nodes):
-    '''
+    def crawlPid(self, args, env_nodes):
+        """
     Examines the identifier presence in an environment
     
     This method:
@@ -555,332 +560,340 @@ class D1PIDDescribe(object):
 
     Returns:
 
-    '''
-    print("Crawling systems for {0}".format(self.data['id']))
-    self._l.info(inspect.currentframe().f_code.co_name)
-    cn_client = env_nodes.getClient()
-    self.data['generated_date'] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
-    try:
-      print("Resolving...")
-      self.doResolve(cn_client)
-      print("Verifying access to object...")
-      self.doCheckDownload(cn_client)
-
-      # Get system metadata for each location of pid
-      print("Retrieving SystemMetadata from CN...")
-
-
-      print("Retrieving SystemMetadata from known hosts...")
-      for idx in range(0, len( self.data['resolve']['o']['objectLocation']) ):
-        node_id = self.data['resolve']['o']['objectLocation'][idx]['nodeIdentifier']
-        client = env_nodes.getClient(node_id=node_id)
-        sysmeta = self.doGetSystemMetadata(client)
-        self._l.debug(sysmeta)
-        self.data['resolve']['o']['objectLocation'][idx]['systemMetadata'] = sysmeta
-      self.data['pid'] = self.data['resolve']['o']['identifier']
-      #self.data['sid'] = self.data['system_metadata']['o']['seriesId']
-      if args.check_index:
-        print("Retrieving search index entry...")
-        self.doGetIndexDocument(args, cn_client)
-    except TerminateAnalysisException as e:
-      self._l.warning("Evaluation terminated: %s", e)
-
-
-  def renderText(self, dest):
-    from jinja2 import Environment, Template, PackageLoader
-    env = Environment(loader = PackageLoader('d1_admin_tools','views'))
-    template = env.get_template('d1pidinfo.txt')
-    print((template.render(self.data)))
-
-
-  def renderJSON(self, dest):
-    self._l.debug( inspect.currentframe().f_code.co_name )
-    json.dump(self.data, dest, indent=2)
-    return True
-
-
-  def getTabularResult(self):
-    def addfield(a, f):
-      if not f in a:
-        a.append(f)
-
-    def fv(sysm, f, o, x):
-      try:
-        sysm[f] = o[x]
-      except KeyError as e:
-        self._l.info("No value for key " + x)
-
-
-    fields = [
-          'serialVersion',
-          'identifier',
-          'formatId',
-          'size',
-          'submitter',
-          'rightsHolder',
-          'accessPolicy',
-          'obsoletes',
-          'obsoletedBy',
-          'archived',
-          'dateuploaded',
-          'dateSysMetadataModified',
-          'originMemberNode',
-          'authoritativeMemberNode',
-          'mediaType',
-          'fileName',
-          ]
-    mfields = [
-      'status',
-      'url',
-      'baseURL',
-    ]
-    sysmetas = []
-    for obj_loc in self.data['resolve']['o']['objectLocation']:
-      self._l.info("SYSMETA FOR: " + obj_loc['nodeIdentifier'])
-      sysm = {'nodeId': obj_loc['nodeIdentifier'],
-              'status': obj_loc['status'],
-              'url': obj_loc['url'],
-              'baseURL': obj_loc['baseURL'],
-              }
-      sysm['version'] = ','.join(obj_loc['version'])
-      for field in fields:
-        addfield(mfields,field)
+    """
+        print("Crawling systems for {0}".format(self.data["id"]))
+        self._l.info(inspect.currentframe().f_code.co_name)
+        cn_client = env_nodes.getClient()
+        self.data["generated_date"] = datetime.utcnow().strftime(JSON_DATETIME_FORMAT)
         try:
-          sysm[field] = obj_loc['systemMetadata']['o'][field]
-        except KeyError as e:
-          sysm[field] = None
-      sysm['checksum'] = obj_loc['systemMetadata']['o']['checksum']['algorithm']
-      sysm['checksum'] += ':' + obj_loc['systemMetadata']['o']['checksum']['v']
-      addfield(mfields, 'checksum')
+            print("Resolving...")
+            self.doResolve(cn_client)
+            print("Verifying access to object...")
+            self.doCheckDownload(cn_client)
 
-      rp = None
-      try:
-        rp = obj_loc['systemMetadata']['o']['replicationPolicy']
-      except:
-        pass
-      addfield(mfields, 'numReplicas')
-      addfield(mfields, 'replicationAllowed')
-      if not rp is None:
-        fv(sysm, 'replicationAllowed', rp, 'replicationAllowed')
-        fv(sysm, 'numReplicas', rp, 'numReplicas')
-        i = 0
-        for rep in rp['preferredMemberNode']:
-          label = 'preferredMemberNode.{0}'.format(i)
-          sysm[label] = rep
-          addfield(mfields, label)
-          i += 1
-        i = 0
-        for rep in rp['blockedMemberNode']:
-          label = 'blockedMemberNode.{0}'.format(i)
-          sysm[label] = rep
-          addfield(mfields, label)
-          i += 1
-      sysmetas.append(sysm)
+            # Get system metadata for each location of pid
+            print("Retrieving SystemMetadata from CN...")
 
-    #Now create a table of results from the dictionaries
-    m = []
-    m.append(['PID Report', ])
-    m.append(['Identifier', self.data['id']])
-    m.append(['Generated', self.data['generated_date']])
-    m.append(['', ])
-    header = ['Field', ]
-    for sysm in sysmetas:
-      header.append(sysm['nodeId'])
-    m.append(header)
-    for field in mfields:
-      row = ['x',] * (len( sysmetas )+1)
-      row[0] = field
-      i = 1
-      for sysm in sysmetas:
-        try:
-          row[i] = sysm[field]
-        except Exception as e:
-          self._l.info(e)
-          pass
-        i += 1
-      m.append(row)
-    return m
+            print("Retrieving SystemMetadata from known hosts...")
+            for idx in range(0, len(self.data["resolve"]["o"]["objectLocation"])):
+                node_id = self.data["resolve"]["o"]["objectLocation"][idx][
+                    "nodeIdentifier"
+                ]
+                client = env_nodes.getClient(node_id=node_id)
+                sysmeta = self.doGetSystemMetadata(client)
+                self._l.debug(sysmeta)
+                self.data["resolve"]["o"]["objectLocation"][idx][
+                    "systemMetadata"
+                ] = sysmeta
+            self.data["pid"] = self.data["resolve"]["o"]["identifier"]
+            # self.data['sid'] = self.data['system_metadata']['o']['seriesId']
+            if args.check_index:
+                print("Retrieving search index entry...")
+                self.doGetIndexDocument(args, cn_client)
+        except TerminateAnalysisException as e:
+            self._l.warning("Evaluation terminated: %s", e)
 
+    def renderText(self, dest):
+        from jinja2 import Environment, Template, PackageLoader
 
-  def getIndexResultAsTable(self, args, config):
-    if len(self.data['index']['o']['docs']) <= 0:
-      self._l.error("No index data available.")
-      return None
-    self._l.info("Adding index sheet")
-    idxdoc = self.data['index']['o']['docs'][0]
-    base_url = config.envPrimaryBaseURL(args.environment)
-    solr_fields = doGetSolrFields(base_url)
+        env = Environment(loader=PackageLoader("d1_admin_tools", "views"))
+        template = env.get_template("d1pidinfo.txt")
+        print((template.render(self.data)))
 
-    m = []
-    m.append(["Solr Index Record", ])
-    m.append(["Identifier", self.data['id']] )
-    m.append(["Generated", self.data['generated_date']])
-    m.append([])
-    m.append(["Field", "Value(s)"])
-    ignored_fields = ['_root_', '_version_']
-    for sfield in solr_fields['fields']:
-      field_name = sfield['name']
-      if field_name not in ignored_fields:
-        row = [field_name, ]
-        try:
-          entry = idxdoc[field_name]
-          if isinstance(entry, list):
-            for value in entry:
-              row.append(value)
-          else:
-            if isinstance(entry, basestring):
-              if len(entry) > 5000:
-                entry = entry[0:4999]
-            row.append(entry)
-        except KeyError as e:
-          self._l.info("No index entry for: %s", field_name)
-        m.append(row)
-    return m
+    def renderJSON(self, dest):
+        self._l.debug(inspect.currentframe().f_code.co_name)
+        json.dump(self.data, dest, indent=2)
+        return True
 
+    def getTabularResult(self):
+        def addfield(a, f):
+            if not f in a:
+                a.append(f)
 
-  def renderGSpread(self, args, config):
-    import gspread
-    from oauth2client.service_account import ServiceAccountCredentials
+        def fv(sysm, f, o, x):
+            try:
+                sysm[f] = o[x]
+            except KeyError as e:
+                self._l.info("No value for key " + x)
 
-    print("Generating Google spreadsheet with results...")
-    m = self.getTabularResult()
+        fields = [
+            "serialVersion",
+            "identifier",
+            "formatId",
+            "size",
+            "submitter",
+            "rightsHolder",
+            "accessPolicy",
+            "obsoletes",
+            "obsoletedBy",
+            "archived",
+            "dateuploaded",
+            "dateSysMetadataModified",
+            "originMemberNode",
+            "authoritativeMemberNode",
+            "mediaType",
+            "fileName",
+        ]
+        mfields = ["status", "url", "baseURL"]
+        sysmetas = []
+        for obj_loc in self.data["resolve"]["o"]["objectLocation"]:
+            self._l.info("SYSMETA FOR: " + obj_loc["nodeIdentifier"])
+            sysm = {
+                "nodeId": obj_loc["nodeIdentifier"],
+                "status": obj_loc["status"],
+                "url": obj_loc["url"],
+                "baseURL": obj_loc["baseURL"],
+            }
+            sysm["version"] = ",".join(obj_loc["version"])
+            for field in fields:
+                addfield(mfields, field)
+                try:
+                    sysm[field] = obj_loc["systemMetadata"]["o"][field]
+                except KeyError as e:
+                    sysm[field] = None
+            sysm["checksum"] = obj_loc["systemMetadata"]["o"]["checksum"]["algorithm"]
+            sysm["checksum"] += ":" + obj_loc["systemMetadata"]["o"]["checksum"]["v"]
+            addfield(mfields, "checksum")
 
-    scope = [
-      'https://spreadsheets.google.com/feeds',
-      'https://www.googleapis.com/auth/drive'
-    ]
-    g_owner = args.owner
-    if g_owner is None:
-      with open(args.credentials, 'r') as gfile:
-        gaccount_info = json.load(gfile)
-        try:
-          g_owner = gaccount_info['default_owner']
-        except KeyError as e:
-          self._l.fatal("No owner account available for transfer. Aborting")
-          return 1
-        #empty the credentials in memory
-        gaccount_info = None
+            rp = None
+            try:
+                rp = obj_loc["systemMetadata"]["o"]["replicationPolicy"]
+            except:
+                pass
+            addfield(mfields, "numReplicas")
+            addfield(mfields, "replicationAllowed")
+            if not rp is None:
+                fv(sysm, "replicationAllowed", rp, "replicationAllowed")
+                fv(sysm, "numReplicas", rp, "numReplicas")
+                i = 0
+                for rep in rp["preferredMemberNode"]:
+                    label = "preferredMemberNode.{0}".format(i)
+                    sysm[label] = rep
+                    addfield(mfields, label)
+                    i += 1
+                i = 0
+                for rep in rp["blockedMemberNode"]:
+                    label = "blockedMemberNode.{0}".format(i)
+                    sysm[label] = rep
+                    addfield(mfields, label)
+                    i += 1
+            sysmetas.append(sysm)
 
-    credentials = ServiceAccountCredentials.from_json_keyfile_name(args.credentials, scope)
-    gclient = gspread.authorize(credentials)
+        # Now create a table of results from the dictionaries
+        m = []
+        m.append(["PID Report"])
+        m.append(["Identifier", self.data["id"]])
+        m.append(["Generated", self.data["generated_date"]])
+        m.append([""])
+        header = ["Field"]
+        for sysm in sysmetas:
+            header.append(sysm["nodeId"])
+        m.append(header)
+        for field in mfields:
+            row = ["x"] * (len(sysmetas) + 1)
+            row[0] = field
+            i = 1
+            for sysm in sysmetas:
+                try:
+                    row[i] = sysm[field]
+                except Exception as e:
+                    self._l.info(e)
+                    pass
+                i += 1
+            m.append(row)
+        return m
 
-    sheet_title = "PID_INFO:" + self.data['generated_date'] + " - " + self.data['pid']
-    wbk = gclient.create( sheet_title )
-    wbk.share(g_owner, perm_type='user', role='owner')
+    def getIndexResultAsTable(self, args, config):
+        if len(self.data["index"]["o"]["docs"]) <= 0:
+            self._l.error("No index data available.")
+            return None
+        self._l.info("Adding index sheet")
+        idxdoc = self.data["index"]["o"]["docs"][0]
+        base_url = config.envPrimaryBaseURL(args.environment)
+        solr_fields = doGetSolrFields(base_url)
 
-    print( "GSheetID = {0}".format(wbk.id) )
-    print( "Title = {0}".format( sheet_title) )
-    print( "Owner = {0}".format(args.owner) )
+        m = []
+        m.append(["Solr Index Record"])
+        m.append(["Identifier", self.data["id"]])
+        m.append(["Generated", self.data["generated_date"]])
+        m.append([])
+        m.append(["Field", "Value(s)"])
+        ignored_fields = ["_root_", "_version_"]
+        for sfield in solr_fields["fields"]:
+            field_name = sfield["name"]
+            if field_name not in ignored_fields:
+                row = [field_name]
+                try:
+                    entry = idxdoc[field_name]
+                    if isinstance(entry, list):
+                        for value in entry:
+                            row.append(value)
+                    else:
+                        if isinstance(entry, basestring):
+                            if len(entry) > 5000:
+                                entry = entry[0:4999]
+                        row.append(entry)
+                except KeyError as e:
+                    self._l.info("No index entry for: %s", field_name)
+                m.append(row)
+        return m
 
+    def renderGSpread(self, args, config):
+        import gspread
+        from oauth2client.service_account import ServiceAccountCredentials
 
-    self._l.info("Populating system metadata sheet...")
-    ws = wbk.worksheet('Sheet1')
-    ws.update_title("SystemMetadata")
-    num_cols = 1
-    for row in m:
-      if len(row) > num_cols:
-        num_cols = len(row)
-    cells = ws.range(1,1,len(m)+1, num_cols+1)
-    for cell in cells:
-      r = cell.row-1
-      c = cell.col-1
-      try:
-        cell.value = m[r][c]
-      except IndexError as e:
-        self._l.debug("Index Error at %d, %d", r,c)
-        pass
-    ws.update_cells(cells)
+        print("Generating Google spreadsheet with results...")
+        m = self.getTabularResult()
 
-    if args.check_index:
-      self._l.info("Populating index sheet...")
-      m_index = self.getIndexResultAsTable(args, config)
-      if not m_index is None:
-        n_rows = len(m_index) +1
-        n_cols = 1
-        for row in m_index:
-          if len(row) > n_cols:
-            n_cols = len(row) + 1
-        ws = wbk.add_worksheet("Index", n_rows, n_cols)
-        cells = ws.range(1, 1, n_rows, n_cols)
+        scope = [
+            "https://spreadsheets.google.com/feeds",
+            "https://www.googleapis.com/auth/drive",
+        ]
+        g_owner = args.owner
+        if g_owner is None:
+            with open(args.credentials, "r") as gfile:
+                gaccount_info = json.load(gfile)
+                try:
+                    g_owner = gaccount_info["default_owner"]
+                except KeyError as e:
+                    self._l.fatal("No owner account available for transfer. Aborting")
+                    return 1
+                # empty the credentials in memory
+                gaccount_info = None
+
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(
+            args.credentials, scope
+        )
+        gclient = gspread.authorize(credentials)
+
+        sheet_title = (
+            "PID_INFO:" + self.data["generated_date"] + " - " + self.data["pid"]
+        )
+        wbk = gclient.create(sheet_title)
+        wbk.share(g_owner, perm_type="user", role="owner")
+
+        print("GSheetID = {0}".format(wbk.id))
+        print("Title = {0}".format(sheet_title))
+        print("Owner = {0}".format(args.owner))
+
+        self._l.info("Populating system metadata sheet...")
+        ws = wbk.worksheet("Sheet1")
+        ws.update_title("SystemMetadata")
+        num_cols = 1
+        for row in m:
+            if len(row) > num_cols:
+                num_cols = len(row)
+        cells = ws.range(1, 1, len(m) + 1, num_cols + 1)
         for cell in cells:
-          r = cell.row-1
-          c = cell.col-1
-          try:
-            cell.value = m_index[r][c]
-          except IndexError as e:
-            self._l.debug("Index error at %d, %d", r, c)
-        ws.update_cells( cells )
-    self._l.info("Completed")
-    print("Done.")
+            r = cell.row - 1
+            c = cell.col - 1
+            try:
+                cell.value = m[r][c]
+            except IndexError as e:
+                self._l.debug("Index Error at %d, %d", r, c)
+                pass
+        ws.update_cells(cells)
 
+        if args.check_index:
+            self._l.info("Populating index sheet...")
+            m_index = self.getIndexResultAsTable(args, config)
+            if not m_index is None:
+                n_rows = len(m_index) + 1
+                n_cols = 1
+                for row in m_index:
+                    if len(row) > n_cols:
+                        n_cols = len(row) + 1
+                ws = wbk.add_worksheet("Index", n_rows, n_cols)
+                cells = ws.range(1, 1, n_rows, n_cols)
+                for cell in cells:
+                    r = cell.row - 1
+                    c = cell.col - 1
+                    try:
+                        cell.value = m_index[r][c]
+                    except IndexError as e:
+                        self._l.debug("Index error at %d, %d", r, c)
+                ws.update_cells(cells)
+        self._l.info("Completed")
+        print("Done.")
 
-  def render(self, args, config, dest=sys.stdout):
-    format = args.format
-    if format is None:
-      format = 'json'
-    format = format.lower()
-    if format == 'json':
-      return self.renderJSON(dest)
-    if format =='xml':
-      return self.renderXML(dest)
-    if format == 'gspread':
-      return self.renderGSpread(args, config)
-    return self.renderText(dest)
+    def render(self, args, config, dest=sys.stdout):
+        format = args.format
+        if format is None:
+            format = "json"
+        format = format.lower()
+        if format == "json":
+            return self.renderJSON(dest)
+        if format == "xml":
+            return self.renderXML(dest)
+        if format == "gspread":
+            return self.renderGSpread(args, config)
+        return self.renderText(dest)
 
 
 def main():
-  '''
+    """
   
   :return: 
-  '''
-  defaults = {'format': ['text', 'json', ],
-              }
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('pid',
-                      help="Identifier to evaluate")
-  parser.add_argument('-o', '--operation',
-                      default='crawl',
-                      help='Operation to perform: crawl or eval')
-  parser.add_argument('-I', '--check_index',
-                      default=False,
-                      action='store_true',
-                      help='Check index entry')
-  parser.add_argument('-C', '--credentials',
-                      default=DEFAULT_CREDENTIALS,
-                      help='Path to JSON service account credentials')
-  parser.add_argument('-O', '--owner',
-                      default=None,
-                      help='Google account for owner of generated Google Sheet')
-  parser.add_argument('-D', '--testdownload',
-                      default=False,
-                      action='store_true',
-                      help='Test if the object is downloadable from resolve location')
+  """
+    defaults = {"format": ["text", "json"]}
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("pid", help="Identifier to evaluate")
+    parser.add_argument(
+        "-o", "--operation", default="crawl", help="Operation to perform: crawl or eval"
+    )
+    parser.add_argument(
+        "-I",
+        "--check_index",
+        default=False,
+        action="store_true",
+        help="Check index entry",
+    )
+    parser.add_argument(
+        "-C",
+        "--credentials",
+        default=DEFAULT_CREDENTIALS,
+        help="Path to JSON service account credentials",
+    )
+    parser.add_argument(
+        "-O",
+        "--owner",
+        default=None,
+        help="Google account for owner of generated Google Sheet",
+    )
+    parser.add_argument(
+        "-D",
+        "--testdownload",
+        default=False,
+        action="store_true",
+        help="Test if the object is downloadable from resolve location",
+    )
 
-  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
-  logger = logging.getLogger('main')
-  if args.format.lower() == 'xml':
-    print("XML output is not supported by this operation, use 'json' instead.")
-    return 1
-  # retrieve the list of nodes in this environment
-  env_nodes = config.envNodes(args.environment)
+    args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+    logger = logging.getLogger("main")
+    if args.format.lower() == "xml":
+        print("XML output is not supported by this operation, use 'json' instead.")
+        return 1
+    # retrieve the list of nodes in this environment
+    env_nodes = config.envNodes(args.environment)
 
-  # Create an instance of tool to get information about a PID
-  analyzer = D1PIDDescribe(args.pid)
+    # Create an instance of tool to get information about a PID
+    analyzer = D1PIDDescribe(args.pid)
 
-  if args.operation.lower() == 'eval':
-    # Get a client that works in this environment.
-    # Unless node_id is specified, the primary CN is used
-    client = env_nodes.getClient()
-    analyzer.evaluate(args, client)
-  elif args.operation.lower() == 'crawl':
-    analyzer.crawlPid(args, env_nodes)
-  elif args.operation.lower() == 'dltest':
-    analyzer.dlTest(args, env_nodes)
+    if args.operation.lower() == "eval":
+        # Get a client that works in this environment.
+        # Unless node_id is specified, the primary CN is used
+        client = env_nodes.getClient()
+        analyzer.evaluate(args, client)
+    elif args.operation.lower() == "crawl":
+        analyzer.crawlPid(args, env_nodes)
+    elif args.operation.lower() == "dltest":
+        analyzer.dlTest(args, env_nodes)
 
-  analyzer.render(args, config)
-  return 0
+    analyzer.render(args, config)
+    return 0
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

@@ -7,149 +7,157 @@ import sys
 import logging
 import argparse
 import d1_admin_tools
-#from d1_admin_tools import operations
+
+# from d1_admin_tools import operations
 import pprint
 from d1_client import cnclient_2_0
 
-#========================
-#== DataONE Operations ==
+# ========================
+# == DataONE Operations ==
 
 
 def resolve(client, pid):
-  ''' Resolve the provided identifier in the specified environment
+    """ Resolve the provided identifier in the specified environment
 
   :param client: An instance of CoordinatingNodeClient
   :param pid: Identifier to resolve
   :return: Dictionary mimicking an objectLocationList with addition of error entry
-  '''
-  logger = logging.getLogger('main')
-  response = {'status':{},
-              'xml': None,
-              }
-  try:
-    res = client.resolveResponse(pid)
-    obj_locs = client._read_dataone_type_response(
-      res, 'ObjectLocationList', response_is_303_redirect=True
-    )
-    response['status']['msg'] = 'OK'
-    response['status']['code'] = res.status_code
-    response['xml'] = res.content #dom.toprettyxml(indent="  ")
-    response['identifier'] = str(obj_locs.identifier.value())
-    response['id_is_sid'] = not (pid == response['identifier'])
-    response['objectLocation'] = []
-    for loc in obj_locs.objectLocation:
-      oloc = {'url': str(loc.url),
-              'nodeIdentifier': str(loc.nodeIdentifier.value()),
-              'baseURL': str(loc.baseURL),
-              'version': list(map(str, loc.version)),
-              'preference': str(loc.preference) }
-      response['objectLocation'].append(oloc)
-  except Exception as e:
-    logger.info(e)
-    response['status']['msg'] = str(e)
-    #response['status']['code'] = e.errorCode
-  return response
+  """
+    logger = logging.getLogger("main")
+    response = {"status": {}, "xml": None}
+    try:
+        res = client.resolveResponse(pid)
+        obj_locs = client._read_dataone_type_response(
+            res, "ObjectLocationList", response_is_303_redirect=True
+        )
+        response["status"]["msg"] = "OK"
+        response["status"]["code"] = res.status_code
+        response["xml"] = res.content  # dom.toprettyxml(indent="  ")
+        response["identifier"] = str(obj_locs.identifier.value())
+        response["id_is_sid"] = not (pid == response["identifier"])
+        response["objectLocation"] = []
+        for loc in obj_locs.objectLocation:
+            oloc = {
+                "url": str(loc.url),
+                "nodeIdentifier": str(loc.nodeIdentifier.value()),
+                "baseURL": str(loc.baseURL),
+                "version": list(map(str, loc.version)),
+                "preference": str(loc.preference),
+            }
+            response["objectLocation"].append(oloc)
+    except Exception as e:
+        logger.info(e)
+        response["status"]["msg"] = str(e)
+        # response['status']['code'] = e.errorCode
+    return response
 
 
 def doResolve(pid, environments, configuration):
-  ''' Resolve the provided identifier in the list of provided environments.
+    """ Resolve the provided identifier in the list of provided environments.
 
   :param pid: Identifier to resolve
   :param environments:  Names of one or more environments to examine
   :param configuration: instance of D1Configuration providing lists of environments
   :return: List of dictionaries containing results of the resolve operation in each environment
-  '''
-  logger = logging.getLogger('main')
-  if len(environments) > 1:
-    logger.warn('Checking all environments...')
-  results = []
-  for env in environments:
-    logger.debug("Checking environment: %s", env)
-    env_nodes = configuration.envNodes(env)
-    client = env_nodes.getClient(allow_redirects=False)
+  """
+    logger = logging.getLogger("main")
+    if len(environments) > 1:
+        logger.warn("Checking all environments...")
+    results = []
+    for env in environments:
+        logger.debug("Checking environment: %s", env)
+        env_nodes = configuration.envNodes(env)
+        client = env_nodes.getClient(allow_redirects=False)
 
-    #if client is None:
-    #  client = cnclient_2_0.CoordinatingNodeClient_2_0(configuration.envPrimaryBaseURL(env),
-    #                                                   allow_redirects=False)
-    #else:
-    #  client.set_base_url(configuration.envPrimaryBaseURL(env))
-    logger.info("Resolving %s in %s", pid, env)
-    res = resolve(client, pid)
-    results.append({'environment': env,
-                    'resolve': res,
-                    })
-  return results
+        # if client is None:
+        #  client = cnclient_2_0.CoordinatingNodeClient_2_0(configuration.envPrimaryBaseURL(env),
+        #                                                   allow_redirects=False)
+        # else:
+        #  client.set_base_url(configuration.envPrimaryBaseURL(env))
+        logger.info("Resolving %s in %s", pid, env)
+        res = resolve(client, pid)
+        results.append({"environment": env, "resolve": res})
+    return results
 
 
 def main():
-  defaults = {'format':['text', 'json', 'yaml', 'xml'],
-              }
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-u', '--urls_only',
-                      action='store_true',
-                      help='Only present URLs from which object can be retrieved')
-  parser.add_argument('pid',
-                      nargs='?',
-                      default=None,
-                      help="Identifier to evaluate")
-  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
-  logger = logging.getLogger('main')
+    defaults = {"format": ["text", "json", "yaml", "xml"]}
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-u",
+        "--urls_only",
+        action="store_true",
+        help="Only present URLs from which object can be retrieved",
+    )
+    parser.add_argument("pid", nargs="?", default=None, help="Identifier to evaluate")
+    args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+    logger = logging.getLogger("main")
 
-  PP = pprint.PrettyPrinter(indent=2)
-  environments = []
-  if args.environment is None or args.environment == "all":
-    environments = config.environments()
-  else:
-    environments = [ args.environment, ]
-  pids = args.pid
-  if pids is None:
-    pids = sys.stdin.read().strip().split()
-  else:
-    pids = pids.split()
-  for pid in pids:
-    results = doResolve(pid, environments, config)
-    format = args.format.lower()
-    if format not in defaults['format']:
-      format = 'text'
-
-    if args.urls_only:
-      summary = []
-      for result in results:
-        if result['resolve']['status']['msg'] == 'OK':
-          for loc in result['resolve']['objectLocation']:
-            summary.append(loc['url'])
-      results = summary
-
-      if format == 'text':
-        results = "\n".join(summary)
-        print(results)
-        break
-
-    if args.format == 'yaml':
-      import yaml
-      print((yaml.safe_dump(results, encoding=d1_admin_tools.d1_config.ENCODING)))
-
-    elif args.format == 'json':
-      import json
-      for result in results:
-        try:
-          result['resolve'].pop('xml', None)
-        except:
-          pass
-      print((json.dumps(results, indent=2, encoding=d1_admin_tools.d1_config.ENCODING)))
-
-    elif args.format == 'xml':
-      import xml.dom.minidom
-      for result in results:
-        dom = xml.dom.minidom.parseString(result['resolve']['xml'])
-        print((dom.toprettyxml(indent="  ")))
-
+    PP = pprint.PrettyPrinter(indent=2)
+    environments = []
+    if args.environment is None or args.environment == "all":
+        environments = config.environments()
     else:
-      PP.pprint(results)
+        environments = [args.environment]
+    pids = args.pid
+    if pids is None:
+        pids = sys.stdin.read().strip().split()
+    else:
+        pids = pids.split()
+    for pid in pids:
+        results = doResolve(pid, environments, config)
+        format = args.format.lower()
+        if format not in defaults["format"]:
+            format = "text"
 
-  return 0
+        if args.urls_only:
+            summary = []
+            for result in results:
+                if result["resolve"]["status"]["msg"] == "OK":
+                    for loc in result["resolve"]["objectLocation"]:
+                        summary.append(loc["url"])
+            results = summary
+
+            if format == "text":
+                results = "\n".join(summary)
+                print(results)
+                break
+
+        if args.format == "yaml":
+            import yaml
+
+            print((yaml.safe_dump(results, encoding=d1_admin_tools.d1_config.ENCODING)))
+
+        elif args.format == "json":
+            import json
+
+            for result in results:
+                try:
+                    result["resolve"].pop("xml", None)
+                except:
+                    pass
+            print(
+                (
+                    json.dumps(
+                        results, indent=2, encoding=d1_admin_tools.d1_config.ENCODING
+                    )
+                )
+            )
+
+        elif args.format == "xml":
+            import xml.dom.minidom
+
+            for result in results:
+                dom = xml.dom.minidom.parseString(result["resolve"]["xml"])
+                print((dom.toprettyxml(indent="  ")))
+
+        else:
+            PP.pprint(results)
+
+    return 0
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

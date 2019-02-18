@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''
+"""
 Print out DataONE Coordinating Node hosts.
 
 e.g.
@@ -13,7 +13,7 @@ hosts.py -e stage -f json
 
 ["cn-stage-ucsb-1.test.dataone.org", "cn-stage-orc-1.test.dataone.org", "cn-stage-unm-1.test.dataone.org"]
 
-'''
+"""
 
 import sys
 import logging
@@ -23,53 +23,54 @@ import json
 
 
 def main():
-  '''
+    """
   -c --config:      optional path to configuration
   -e --environment: name of environment
   -f --format:      name of output format
   -l --log_level:   flag to turn on logging, more means more detailed logging.
 
   :return: int for sys.exit()
-  '''
-  defaults = {'environment': None,
-              'format':['csv','json','text']}
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-p', '--primary',
-                      action='store_true',
-                      help="List only the primary host(s)")
-  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
-  logger = logging.getLogger('main')
-  environments = []
-  if args.environment is None:
-    environments = config.environments()
-  elif args.environment.lower() == 'list':
-    environments = config.environments()
-    environments.sort()
-    if args.format == "csv":
-      print(",".join(environments))
-      return 0
-    if args.format == 'json':
-      print(json.dumps(environments, indent=2, encoding='utf-8'))
-      sys.exit(0)
-    print("\n".join(environments))
-    return 0
-  else:
-    environments = [ args.environment, ]
-  hosts = []
-  for environment in environments:
-    if args.primary:
-      hosts.append(config.envPrimaryHost(environment))
+  """
+    defaults = {"environment": None, "format": ["csv", "json", "text"]}
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-p", "--primary", action="store_true", help="List only the primary host(s)"
+    )
+    args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+    logger = logging.getLogger("main")
+    environments = []
+    if args.environment is None:
+        environments = config.environments()
+    elif args.environment.lower() == "list":
+        environments = config.environments()
+        environments.sort()
+        if args.format == "csv":
+            print(",".join(environments))
+            return 0
+        if args.format == "json":
+            print(json.dumps(environments, indent=2, encoding="utf-8"))
+            sys.exit(0)
+        print("\n".join(environments))
+        return 0
     else:
-      hosts += config.hosts(environment)
-  if args.format.lower() == 'csv':
-    print(",".join(hosts))
+        environments = [args.environment]
+    hosts = []
+    for environment in environments:
+        if args.primary:
+            hosts.append(config.envPrimaryHost(environment))
+        else:
+            hosts += config.hosts(environment)
+    if args.format.lower() == "csv":
+        print(",".join(hosts))
+        return 0
+    if args.format.lower() == "json":
+        print(json.dumps(hosts, encoding="utf-8"))
+        return 0
+    print("\n".join(hosts))
     return 0
-  if args.format.lower() == 'json':
-    print(json.dumps(hosts, encoding='utf-8'))
-    return 0
-  print("\n".join(hosts))
-  return 0
+
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

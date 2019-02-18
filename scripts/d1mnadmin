@@ -1,12 +1,12 @@
 #!/usr/bin/env python
-'''
+"""
 Perform administrative operations for a Member Node.
 
 Requires shell access to a coordinating node in the desired environment.
 
 - reset synchronization time
 - set node approval
-'''
+"""
 
 import sys
 import logging
@@ -21,140 +21,172 @@ from fabric.api import run, sudo, execute, hide
 
 
 def updateNode(host, certificate, nodeid, nodedoc):
-  nodexml = ""
-  with codecs.open(nodedoc,'r',encoding='UTF-8') as fxml:
-    nodexml = fxml.read()
-  logging.debug("Node Document XML = %s", nodexml)
-  node = d1_common.types.dataoneTypes_v2_0.CreateFromDocument(nodexml)
-  if node.nodeId != nodeid:
-    logging.error("NodeId mismatch: %s specified but %s provided in node document", nodeid, node.nodeId)
-    raise ValueError
-  return ''
-  client = cnclient_2_0.CoordinatingNodeClient_2_0(host,
-                                                   api_major=2,
-                                                   capture_response_body=True,
-                                                   cert_path=certificate)
-  res = client.updateNodeCapabilities(nodeid, node)
-  return res
+    nodexml = ""
+    with codecs.open(nodedoc, "r", encoding="UTF-8") as fxml:
+        nodexml = fxml.read()
+    logging.debug("Node Document XML = %s", nodexml)
+    node = d1_common.types.dataoneTypes_v2_0.CreateFromDocument(nodexml)
+    if node.nodeId != nodeid:
+        logging.error(
+            "NodeId mismatch: %s specified but %s provided in node document",
+            nodeid,
+            node.nodeId,
+        )
+        raise ValueError
+    return ""
+    client = cnclient_2_0.CoordinatingNodeClient_2_0(
+        host, api_major=2, capture_response_body=True, cert_path=certificate
+    )
+    res = client.updateNodeCapabilities(nodeid, node)
+    return res
 
 
 def setNodeProperty(host, certificate, nodeid, properties):
-  '''
+    """
   Set a key-value entry in a node document property list.
   :param host:
   :param certificate:
   :param nodeid:
   :param properties:
   :return:
-  '''
+  """
 
 
 def main():
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('node_id',
-                      help="Node for operations")
-  parser.add_argument('-D', '--sync_date',
-                      nargs='?',
-                      const='1900-01-01T00:00:00Z',
-                      help="Reset synchronization date for the specified Node")
-  parser.add_argument('-A', '--approve',
-
-                      help='Set node approval to specified value (TRUE or FALSE)')
-  parser.add_argument('-S', '--synchronize',
-
-                      help='Set node synchronize state to specified value (up or down)')
-  parser.add_argument('-H', '--host',
-
-                      help='Use specified host instead of primary host of environment (overrides -e)')
-  parser.add_argument('-p','--ldap_password',
-
-                      help='Password for LDAP on the CN')
-  parser.add_argument('-q','--quiet',
-                      action='store_true',
-                      help="Don't ask for confirmation of actions.")
-  parser.add_argument('-N','--nodedoc',
-
-                      help='Call updateNodeCapabilities for the specified node with provided node document')
-  parser.add_argument('-E','--certificate',
-
-                      help='Certificate to ue for authentication')
-  args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
-  logger = logging.getLogger("main")
-  host = config.envPrimaryHost(args.environment)
-  if args.host is not None:
-    if args.host != host:
-      logger.info("Using host %s instead of environment primary host %s", args.host, host)
-      host = args.host
-  if args.sync_date is not None:
-    #Should look like: 1900-01-01T00:00:00Z
-    tstamp = d1_admin_tools.textToDateTime(args.sync_date)
-    ldap_tstamp = tstamp.strftime('%Y-%m-%dT%H:%M:%SZ')
-    logger.warning("Resetting last synchronization time to %s for %s in the %s environment", ldap_tstamp, args.node_id, args.environment.upper())
-    confirm = True
-    if not args.quiet:
-      confirm = input("Proceed (yes/no)? ")
-      if confirm == "yes":
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("node_id", help="Node for operations")
+    parser.add_argument(
+        "-D",
+        "--sync_date",
+        nargs="?",
+        const="1900-01-01T00:00:00Z",
+        help="Reset synchronization date for the specified Node",
+    )
+    parser.add_argument(
+        "-A", "--approve", help="Set node approval to specified value (TRUE or FALSE)"
+    )
+    parser.add_argument(
+        "-S",
+        "--synchronize",
+        help="Set node synchronize state to specified value (up or down)",
+    )
+    parser.add_argument(
+        "-H",
+        "--host",
+        help="Use specified host instead of primary host of environment (overrides -e)",
+    )
+    parser.add_argument("-p", "--ldap_password", help="Password for LDAP on the CN")
+    parser.add_argument(
+        "-q",
+        "--quiet",
+        action="store_true",
+        help="Don't ask for confirmation of actions.",
+    )
+    parser.add_argument(
+        "-N",
+        "--nodedoc",
+        help="Call updateNodeCapabilities for the specified node with provided node document",
+    )
+    parser.add_argument(
+        "-E", "--certificate", help="Certificate to ue for authentication"
+    )
+    args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
+    logger = logging.getLogger("main")
+    host = config.envPrimaryHost(args.environment)
+    if args.host is not None:
+        if args.host != host:
+            logger.info(
+                "Using host %s instead of environment primary host %s", args.host, host
+            )
+            host = args.host
+    if args.sync_date is not None:
+        # Should look like: 1900-01-01T00:00:00Z
+        tstamp = d1_admin_tools.textToDateTime(args.sync_date)
+        ldap_tstamp = tstamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+        logger.warning(
+            "Resetting last synchronization time to %s for %s in the %s environment",
+            ldap_tstamp,
+            args.node_id,
+            args.environment.upper(),
+        )
         confirm = True
-      else:
-        print("You entered '{0}'. Aborting.".format(confirm))
-        confirm = False
-    if confirm:
-      ldap_password = args.ldap_password
-      if ldap_password is None:
-        ldap_password = getpass("Enter LDAP password: ")
-      execute(operations.resetNodeHarvestDate,
-              args.node_id,
-              ldap_pass=ldap_password,
-              harvest_timestamp=ldap_tstamp,
-              host=host)
-    return 0
-  TF_expected = ['TRUE','FALSE']
-  UD_expected = ['up','down']
-  if args.approve is not None:
-    approve_flag = args.approve.upper()
-    if approve_flag not in TF_expected:
-      logger.error("Approve must be one of [%s], not %s", ",".join(TF_expected), approve_flag)
-      return 1
-    logger.info("Setting approve state for %s to %s", args.node_id, approve_flag)
-    #TODO: implement
-    raise NotImplementedError
-    return 0
-  if args.synchronize is not None:
-    sync_flag = args.synchronize
-    if sync_flag not in UD_expected:
-      logger.error("Synchronize must be one of [%s], not %s", ",".join(UD_expected), sync_flag)
-      return 1
-    logger.warn("Setting synchronize state for %s to %s", args.node_id, sync_flag)
-    confirm = True
-    if not args.quiet:
-      confirm = input("Proceed (yes/no)? ")
-      if confirm == "yes":
+        if not args.quiet:
+            confirm = input("Proceed (yes/no)? ")
+            if confirm == "yes":
+                confirm = True
+            else:
+                print("You entered '{0}'. Aborting.".format(confirm))
+                confirm = False
+        if confirm:
+            ldap_password = args.ldap_password
+            if ldap_password is None:
+                ldap_password = getpass("Enter LDAP password: ")
+            execute(
+                operations.resetNodeHarvestDate,
+                args.node_id,
+                ldap_pass=ldap_password,
+                harvest_timestamp=ldap_tstamp,
+                host=host,
+            )
+        return 0
+    TF_expected = ["TRUE", "FALSE"]
+    UD_expected = ["up", "down"]
+    if args.approve is not None:
+        approve_flag = args.approve.upper()
+        if approve_flag not in TF_expected:
+            logger.error(
+                "Approve must be one of [%s], not %s",
+                ",".join(TF_expected),
+                approve_flag,
+            )
+            return 1
+        logger.info("Setting approve state for %s to %s", args.node_id, approve_flag)
+        # TODO: implement
+        raise NotImplementedError
+        return 0
+    if args.synchronize is not None:
+        sync_flag = args.synchronize
+        if sync_flag not in UD_expected:
+            logger.error(
+                "Synchronize must be one of [%s], not %s",
+                ",".join(UD_expected),
+                sync_flag,
+            )
+            return 1
+        logger.warn("Setting synchronize state for %s to %s", args.node_id, sync_flag)
         confirm = True
-      else:
-        print("You entered '{0}'. Aborting.".format(confirm))
-        confirm = False
-    if confirm:
-      ldap_password = args.ldap_password
-      if ldap_password is None:
-        ldap_password = getpass("Enter LDAP password: ")
-      execute(operations.setNodeSynchronize,
-              args.node_id,
-              sync_flag,
-              ldap_pass=ldap_password,
-              host=host)
+        if not args.quiet:
+            confirm = input("Proceed (yes/no)? ")
+            if confirm == "yes":
+                confirm = True
+            else:
+                print("You entered '{0}'. Aborting.".format(confirm))
+                confirm = False
+        if confirm:
+            ldap_password = args.ldap_password
+            if ldap_password is None:
+                ldap_password = getpass("Enter LDAP password: ")
+            execute(
+                operations.setNodeSynchronize,
+                args.node_id,
+                sync_flag,
+                ldap_pass=ldap_password,
+                host=host,
+            )
+        return 0
+
+    if args.nodedoc is not None:
+        if args.certificate is None:
+            logger.error("Certificate is required for updating node capabilities.")
+            return 1
+        base_url = host = config.envPrimaryBaseURL(args.environment)
+        res = updateNode(base_url, args.certificate, args.node_id, args.nodedoc)
+        print(str(res))
+
     return 0
-
-  if args.nodedoc is not None:
-    if args.certificate is None:
-      logger.error("Certificate is required for updating node capabilities.")
-      return 1
-    base_url = host = config.envPrimaryBaseURL(args.environment)
-    res = updateNode(base_url, args.certificate, args.node_id, args.nodedoc)
-    print(str(res))
-
-  return 0
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

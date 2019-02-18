@@ -1,7 +1,7 @@
 #!/usr/bin/env python
-'''
+"""
 Retrieve system metadata for a PID
-'''
+"""
 
 import sys
 import logging
@@ -12,68 +12,77 @@ from d1_client import baseclient_2_0
 
 
 def getSystemMetadata(client, pid):
-  ''' Retrieve system metadata for a PID
+    """ Retrieve system metadata for a PID
 
   :param client: An instance of CoordinatingNodeClient
   :param pid: Identifier to resolve
   :return: Dictionary mimicking a SystemMetadata structure with addition of error entry
-  '''
-  logger = logging.getLogger('main')
-  try:
-    res = client.getSystemMetadata(pid)
-    return dataone_response.DataONEResponse( obj=res )
-  except Exception as e:
-    logger.info(e)
-  return dataone_response.DataONEResponse( e )
+  """
+    logger = logging.getLogger("main")
+    try:
+        res = client.getSystemMetadata(pid)
+        return dataone_response.DataONEResponse(obj=res)
+    except Exception as e:
+        logger.info(e)
+    return dataone_response.DataONEResponse(e)
 
 
 def main():
-  '''
+    """
   -c --config:      optional path to configuration
   -e --environment: name of environment
   -f --format:      name of output format
   -l --log_level:   flag to turn on logging, more means more detailed logging.
 
   :return: int for sys.exit()
-  '''
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-r','--raw',
-                      action='store_true',
-                      help='Show raw output from request, no parsing or formatting')
-  parser.add_argument('-B', '--baseURL',
-
-                      help='Base URL of node from which to retrieve system metadata (overrides -e)')
-  parser.add_argument('pid',
-                      help="Identifier to evaluate")
-  parser.add_argument('-E', '--certificate',
-
-                      help='File name of client certificate to use for authenticating access to content.')
-  defaults = {'format': ['xml','text', 'json'],
-              }
-  args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
-  logger = logging.getLogger('main')
-  pid = args.pid
-  base_url = args.baseURL
-  if base_url is None:
-    base_url = config.envPrimaryBaseURL(args.environment)
-  client = baseclient_2_0.DataONEBaseClient_2_0(base_url, cert_pem_path=args.certificate)
-  if args.raw:
-    response = client.getSystemMetadataResponse(pid)
-    logging.info("Response status: %d",response.status_code)
-    print(response.content)
+  """
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-r",
+        "--raw",
+        action="store_true",
+        help="Show raw output from request, no parsing or formatting",
+    )
+    parser.add_argument(
+        "-B",
+        "--baseURL",
+        help="Base URL of node from which to retrieve system metadata (overrides -e)",
+    )
+    parser.add_argument("pid", help="Identifier to evaluate")
+    parser.add_argument(
+        "-E",
+        "--certificate",
+        help="File name of client certificate to use for authenticating access to content.",
+    )
+    defaults = {"format": ["xml", "text", "json"]}
+    args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+    logger = logging.getLogger("main")
+    pid = args.pid
+    base_url = args.baseURL
+    if base_url is None:
+        base_url = config.envPrimaryBaseURL(args.environment)
+    client = baseclient_2_0.DataONEBaseClient_2_0(
+        base_url, cert_pem_path=args.certificate
+    )
+    if args.raw:
+        response = client.getSystemMetadataResponse(pid)
+        logging.info("Response status: %d", response.status_code)
+        print(response.content)
+        return 0
+    results = getSystemMetadata(client, pid)
+    format = args.format.lower()
+    if format not in defaults["format"]:
+        format = "text"
+    if args.format == "xml":
+        print(results.asXML())
+    elif args.format == "json":
+        print(results.asJSON())
+    else:
+        print(str(results))
     return 0
-  results = getSystemMetadata(client, pid)
-  format = args.format.lower()
-  if format not in defaults['format']:
-    format = 'text'
-  if args.format == 'xml':
-    print( results.asXML() )
-  elif args.format == 'json':
-    print( results.asJSON())
-  else:
-    print( str(results) )
-  return 0
+
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

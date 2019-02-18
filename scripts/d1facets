@@ -1,8 +1,8 @@
 #!/bin/env python
-'''
+"""
 List facet values from solr
 
-'''
+"""
 
 import sys
 import logging
@@ -10,8 +10,9 @@ import argparse
 import d1_admin_tools
 from d1_admin_tools import solrclient
 
-def doGetFacets(url, field, core='solr', q='*:*'):
-  '''
+
+def doGetFacets(url, field, core="solr", q="*:*"):
+    """
     host='cn.dataone.org',
     solrBase='/cn/v1/query/solr/',
     persistent=True,
@@ -24,78 +25,73 @@ def doGetFacets(url, field, core='solr', q='*:*'):
   :param core:
   :param q:
   :return:
-  '''
-  client = solrclient.SolrClient( url + "/v2/query", core )
-  vals = client.getFieldValues( field, q=q )
-  result = {'numFound':vals['numFound'],
-            'field':field,
-            'values':[]}
-  for i in range(0, len(vals[field]), 2):
-    row = [vals[field][i], vals[field][i+1], ]
-    result['values'].append(row)
-  return result
+  """
+    client = solrclient.SolrClient(url + "/v2/query", core)
+    vals = client.getFieldValues(field, q=q)
+    result = {"numFound": vals["numFound"], "field": field, "values": []}
+    for i in range(0, len(vals[field]), 2):
+        row = [vals[field][i], vals[field][i + 1]]
+        result["values"].append(row)
+    return result
 
 
 def main():
-  '''
+    """
   -c --config:      optional path to configuration
   -e --environment: name of environment
   -f --format:      name of output format
   -l --log_level:   flag to turn on logging, more means more detailed logging.
 
   :return: int for sys.exit()
-  '''
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-C', '--core',
-                      default='solr',
-                      help='Name of solr index to use (solr)')
-  parser.add_argument('-d', '--delimiter',
+  """
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-C", "--core", default="solr", help="Name of solr index to use (solr)"
+    )
+    parser.add_argument("-d", "--delimiter", help="Delimiter for text output")
+    parser.add_argument("field", default="nodeId", help="Field to get facet values")
+    parser.add_argument("-q", "--query", default="*:*", help="Query to use")
+    parser.add_argument(
+        "-B", "--baseurl", help="BaseURL of solr service to use", default=None
+    )
+    args, config = d1_admin_tools.defaultScriptMain(parser)
+    logger = logging.getLogger("main")
 
-                      help='Delimiter for text output')
-  parser.add_argument('field',
-                      default='nodeId',
-                      help='Field to get facet values')
-  parser.add_argument('-q', '--query',
-                      default='*:*',
-                      help='Query to use')
-  parser.add_argument('-B','--baseurl',
-                      help='BaseURL of solr service to use',
-                      default=None)
-  args, config = d1_admin_tools.defaultScriptMain(parser)
-  logger = logging.getLogger('main')
+    url = config.envPrimaryBaseURL(args.environment)
+    if args.baseurl is not None:
+        url = args.baseurl
 
-  url = config.envPrimaryBaseURL(args.environment)
-  if args.baseurl is not None:
-    url = args.baseurl
+    results = doGetFacets(url, args.field, args.core, args.query)
 
-  results = doGetFacets(url, args.field, args.core, args.query)
+    format = args.format.lower()
+    if not format in ["text", "json", "yaml"]:
+        format = "text"
+        logger.warning("Unknown output format requested, using %s", format)
+    if format == "json":
+        import json
 
-  format = args.format.lower()
-  if not format in ['text', 'json', 'yaml']:
-    format = 'text'
-    logger.warning("Unknown output format requested, using %s", format)
-  if format == 'json':
-    import json
-    print(json.dumps(results, encoding='utf-8', indent=2))
+        print(json.dumps(results, encoding="utf-8", indent=2))
+        return 0
+    if format == "yaml":
+        import yaml
+
+        print(yaml.safe_dump(results, encoding="utf-8"))
+        return 0
+    if args.delimiter is not None:
+        for row in results["values"]:
+            print("{0}{1}{2}".format(row[0], args.delimiter, row[1]).encode("utf-8"))
+        return 0
+    val_length = 0
+    for row in results["values"]:
+        if len(row[0]) > val_length:
+            val_length = len(row[0])
+    formatstr = "{0:<" + str(val_length + 1) + "}{1}"
+    for row in results["values"]:
+        print(formatstr.format(row[0], row[1]).encode("utf-8"))
     return 0
-  if format == 'yaml':
-    import yaml
-    print(yaml.safe_dump(results, encoding='utf-8'))
-    return 0
-  if args.delimiter is not None:
-    for row in results['values']:
-      print("{0}{1}{2}".format(row[0], args.delimiter, row[1]).encode('utf-8'))
-    return 0
-  val_length = 0
-  for row in results['values']:
-    if len(row[0]) > val_length:
-      val_length = len(row[0])
-  formatstr = "{0:<" + str(val_length + 1) + "}{1}"
-  for row in results['values']:
-    print(formatstr.format(row[0], row[1]).encode('utf-8'))
-  return 0
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())
