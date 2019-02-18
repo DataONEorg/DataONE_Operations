@@ -39,16 +39,15 @@ def main():
   parser = argparse.ArgumentParser(description=__doc__,
     formatter_class=argparse.RawDescriptionHelpFormatter)
   parser.add_argument('-r','--raw',
-                      default=False,
                       action='store_true',
                       help='Show raw output from request, no parsing or formatting')
   parser.add_argument('-B', '--baseURL',
-                      default=None,
+
                       help='Base URL of node from which to retrieve system metadata (overrides -e)')
   parser.add_argument('pid',
                       help="Identifier to evaluate")
   parser.add_argument('-E', '--certificate',
-                      default=None,
+
                       help='File name of client certificate to use for authenticating access to content.')
   defaults = {'format': ['xml','text', 'json'],
               }
@@ -62,18 +61,18 @@ def main():
   if args.raw:
     response = client.getSystemMetadataResponse(pid)
     logging.info("Response status: %d",response.status_code)
-    print((response.content))
+    print(response.content)
     return 0
   results = getSystemMetadata(client, pid)
   format = args.format.lower()
   if format not in defaults['format']:
     format = 'text'
   if args.format == 'xml':
-    print(( results.asXML() ))
+    print( results.asXML() )
   elif args.format == 'json':
-    print(( results.asJSON()))
+    print( results.asJSON())
   else:
-    print(( str(results) ))
+    print( str(results) )
   return 0
 
 if __name__ == "__main__":

@@ -54,7 +54,7 @@ def main():
 def parse_cmd_line_args():
   parser = argparse.ArgumentParser(description='Create CN log digest')
   parser.add_argument(
-    '--debug', action='store_true', default=False, help='Debug level logging'
+    '--debug', action='store_true', help='Debug level logging'
   )
   parser.add_argument('regex', action='store', help='Filter regex')
   parser.add_argument(

@@ -71,7 +71,7 @@ setup(
     # https://packaging.python.org/en/latest/requirements.html
     install_requires=['requests', 'fabric3', 'xmljson', 'dateparser',
                       'humanize', 'pytz', 'tzlocal', 'keyring',
-                      'python-ldap',
+                      'python-ldap', 'dataone.common'
                       ],
 
     # List additional groups of dependencies here (e.g. development

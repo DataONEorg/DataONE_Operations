@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 '''
 Get or Set the state of processing services on a Coordinating Node
 '''

@@ -59,26 +59,25 @@ def main():
                       const='1900-01-01T00:00:00Z',
                       help="Reset synchronization date for the specified Node")
   parser.add_argument('-A', '--approve',
-                      default=None,
+
                       help='Set node approval to specified value (TRUE or FALSE)')
   parser.add_argument('-S', '--synchronize',
-                      default=None,
+
                       help='Set node synchronize state to specified value (up or down)')
   parser.add_argument('-H', '--host',
-                      default=None,
+
                       help='Use specified host instead of primary host of environment (overrides -e)')
   parser.add_argument('-p','--ldap_password',
-                      default=None,
+
                       help='Password for LDAP on the CN')
   parser.add_argument('-q','--quiet',
-                      default=False,
                       action='store_true',
                       help="Don't ask for confirmation of actions.")
   parser.add_argument('-N','--nodedoc',
-                      default=None,
+
                       help='Call updateNodeCapabilities for the specified node with provided node document')
   parser.add_argument('-E','--certificate',
-                      default=None,
+
                       help='Certificate to ue for authentication')
   args, config = d1_admin_tools.defaultScriptMain(parser, with_format=False)
   logger = logging.getLogger("main")
@@ -91,7 +90,7 @@ def main():
     #Should look like: 1900-01-01T00:00:00Z
     tstamp = d1_admin_tools.textToDateTime(args.sync_date)
     ldap_tstamp = tstamp.strftime('%Y-%m-%dT%H:%M:%SZ')
-    logger.warn("Resetting last synchronization time to %s for %s in the %s environment", ldap_tstamp, args.node_id, args.environment.upper())
+    logger.warning("Resetting last synchronization time to %s for %s in the %s environment", ldap_tstamp, args.node_id, args.environment.upper())
     confirm = True
     if not args.quiet:
       confirm = input("Proceed (yes/no)? ")
@@ -152,7 +151,7 @@ def main():
       return 1
     base_url = host = config.envPrimaryBaseURL(args.environment)
     res = updateNode(base_url, args.certificate, args.node_id, args.nodedoc)
-    print((str(res)))
+    print(str(res))
 
   return 0
 

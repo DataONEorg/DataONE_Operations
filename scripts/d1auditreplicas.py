@@ -60,7 +60,7 @@ def main():
     d1env_dict = d1_common.env.D1_ENV_DICT[args.env]
   except LookupError:
     raise AuditError(
-      'Environment must be one of {}'.format(', '.join(D1_ENV_DICT))
+      'Environment must be one of {}'.format(', '.join(d1_common.D1_ENV_DICT))
     )
 
   if args.use_v1:
@@ -134,7 +134,7 @@ def calc_obj_checksum_str(client, pid, algo_str):
   except d1_common.types.exceptions.DataONEException as e:
     return e.name
   except Exception as e:
-    return e.message
+    return str(e)
   else:
     return d1_common.checksum.format_checksum(checksum_pyxb)
 
@@ -145,7 +145,7 @@ def get_sysmeta_checksum_str(client, pid):
   except d1_common.types.exceptions.DataONEException as e:
     return e.name
   except Exception as e:
-    return e.message
+    return str(e)
   else:
     return d1_common.checksum.format_checksum(sysmeta_pyxb.checksum)
 
