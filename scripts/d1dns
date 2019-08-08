@@ -1,0 +1,87 @@
+import sys
+import logging
+import argparse
+import json
+import d1_admin_tools
+import keyring
+import route53
+
+"""
+Manage DataONE DNS entries.
+
+DataONE DNS uses Amazon Route53. This script enables retrieval of DNS entries.
+
+Later versions will support setting DNS entries. 
+
+On OS-X expects keychain to have two entries available:
+d1.route53.accesskeyid = the access key aidentifier
+d1.route53.accesskey = the access key (secret)
+"""
+
+KEYTOOL_ROUTE53_KEYID = "d1.route53.accesskeyid"
+KEYTOOL_ROUTE53_KEY   = "d1.route53.accesskey"
+
+def removeNameLastDot(name):
+    while name.endswith("."):
+        name = name[:-1]
+    return name
+
+
+def getZoneByName(conn, zone_name="dataone.org."):
+    if not zone_name.endswith("."):
+        zone_name += "."
+    for zone in conn.list_hosted_zones():
+        logging.debug("Found zone name, id: %s %s", zone.name, zone.id)
+        if zone.name == zone_name:
+            return zone.id
+    return None
+
+
+def getZoneEntries(record_type=None, zone_name="dataone.org"):
+    result = []
+    conn = route53.connect(
+        keyring.get_password("system", KEYTOOL_ROUTE53_KEYID),
+        keyring.get_password("system", KEYTOOL_ROUTE53_KEY)
+    )
+    logging.info("Looking up zone_id for " + zone_name)
+    zone_id = getZoneByName(conn, zone_name)
+    logging.info("Zone_id = " + zone_id)
+    if zone_id is None:
+        return result
+    hosted_zone = conn.get_hosted_zone_by_id(zone_id)
+    for record_set in hosted_zone.record_sets:
+        match = True
+        if not record_type is None:
+            match = (record_set.rrset_type == record_type)
+        if match:
+            entry = {
+                "kind": record_set.rrset_type,
+                "values": None,
+                "name": removeNameLastDot(record_set.name),
+            }
+            if len(record_set.records) == 1:
+                entry["values"] = record_set.records[0]
+            else:
+                entry["values"] = record_set.records
+            result.append(entry)
+    return result
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__,
+                                     formatter_class=argparse.RawDescriptionHelpFormatter)
+    args, config = d1_admin_tools.defaultScriptMain(parser)
+    logger = logging.getLogger('main')
+    format = args.format.lower()
+    if format not in ['text', 'json', 'yaml', 'xml', 'csv', 'html', ]:
+        format = 'text'
+    result = getZoneEntries(record_type=None)
+    if format == "json":
+        json.dumps(result, indent=2)
+    else:
+        for row in result:
+            print(f"{row['kind']} {row['name']} {row['values']}")
+    return 0
+
+if __name__ == "__main__":
+    sys.exit( main() )
