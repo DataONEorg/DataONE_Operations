@@ -12,6 +12,8 @@ from getpass import getpass
 from fabric.api import run, sudo, execute, hide
 from fabric.context_managers import env, settings
 
+SSH_TIMEOUT = 30
+
 DATAONE_ACCOUNT_KEY = "dataone.org-sudo"
 
 PROCESSING_PROPERTIES = {'synchronization': {'file': 'synchronization.properties',
@@ -50,7 +52,7 @@ def getProcessingServiceState(service):
   service = service.lower()
   propfile = os.path.join("/etc/dataone/process/", PROCESSING_PROPERTIES[service]['file'])
   cmd = "grep \"" + PROCESSING_PROPERTIES[service]['prop'] + "\" " + propfile
-  res = run(cmd)
+  res = run(cmd, timeout=SSH_TIMEOUT)
   return res
 
 
@@ -64,7 +66,7 @@ def setProcessingServiceState(service, state):
     raise ValueError("Bad state for service: {0}".format(state))
   # s/^\(Synchronization\.active\=\).*/\1TRUE/'
   cmd = "sed -i 's/^\(" + PROCESSING_PROPERTIES[service]['prop'] + "\=\).*/\\1" + state + "/' " + propfile
-  sudo(cmd)
+  sudo(cmd, timeout=SSH_TIMEOUT)
   return getProcessingServiceState(service)
 
 
