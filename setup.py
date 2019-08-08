@@ -113,6 +113,7 @@ setup(
              'scripts/d1verifytoken',
              'scripts/d1logintoken',
              'scripts/d1auditreplicas',
+             'scripts/d1ppids',
 #             'scripts/httpcli',
              ],
 
