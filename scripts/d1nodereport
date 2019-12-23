@@ -1,8 +1,10 @@
-'''
+#!/usr/bin/env python
+
+"""
 Generates a report on objects on CN vs. a MN
 
 
-'''
+"""
 
 import os
 import argparse
@@ -22,280 +24,276 @@ DATAONE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 SQLITE3_DATE_FORMAT = "%Y-%m-%d %H:%M:%S.%f"
 
+
 class NodeInfo(object):
 
-  ROWS_PER_COMMIT = 100
+    ROWS_PER_COMMIT = 100
 
-  def __init__(self, dbname, initialize=True):
-    self.dbname = os.path.abspath(dbname)
-    self.dbc = None
-    self.session_id = None
-    self.setupDatabase()
+    def __init__(self, dbname, initialize=True):
+        self.dbname = os.path.abspath(dbname)
+        self.dbc = None
+        self.session_id = None
+        self.setupDatabase()
 
+    def getConnection(self):
+        if self.dbc is None:
+            self.dbc = sqlite3.connect(self.dbname)
+        return self.dbc
 
-  def getConnection(self):
-    if self.dbc is None:
-      self.dbc = sqlite3.connect(self.dbname)
-    return self.dbc
-
-
-  def setupDatabase(self):
-    dbc = self.getConnection()
-    csr = dbc.cursor()
-    sql = ("CREATE TABLE IF NOT EXISTS identifiers_a "
-           "(id TEXT PRIMRY_KEY, sesson_id TEXT, pid TEXT, format_id TEXT, date_modified TEXT, size_bytes INTEGER)"
-           )
-    csr.execute(sql)
-    sql = ("CREATE TABLE IF NOT EXISTS identifiers_b "
-           "(id TEXT PRIMARY KEY, session_id TEXT, pid TEXT, format_id TEXT, date_modified TEXT, size_bytes INTEGER)"
-           )
-    csr.execute(sql)
-    sql = ("CREATE TABLE IF NOT EXISTS metadata "
-           "(id TEXT PRIMARY KEY, t_start TEXT, t_end TEXT, environment TEXT, node_a TEXT, node_b TEXT)"
-           )
-    csr.execute(sql)
-    dbc.commit()
-
-
-  def getTStamp(self, t=None):
-    if t is None:
-      t = datetime.now(pytz.utc)
-    return t.strftime(SQLITE3_DATE_FORMAT)
-
-
-  def startSession(self, environment, node_a, node_b):
-    logging.debug("startSession: %s, %s, %s", environment, node_a, node_b)
-    dbc = self.getConnection()
-    tstart = self.getTStamp()
-    session_id = shortuuid.uuid(tstart)
-    csr = dbc.cursor()
-    tend = ''
-    sql = ("INSERT OR REPLACE INTO metadata VALUES (?, ?, ?, ?, ?, ?)")
-    csr.execute(sql, (session_id, tstart, tend, environment, node_a, node_b))
-    dbc.commit()
-    self.session_id = session_id
-    return session_id
-
-
-  def endSession(self, session_id=None):
-    if session_id is None:
-      session_id = self.session_id
-    if session_id is None:
-      raise ValueError("No session available or specified.")
-    dbc = self.getConnection()
-    tend = self.getTStamp()
-    csr = dbc.cursor()
-    sql = "UPDATE metadata SET t_end=? WHERE id=?"
-    csr.execute(sql, (tend, session_id))
-    dbc.commit()
-
-
-  def _addEntries(self, entries, table_name, session_id=None):
-    if session_id is None:
-      session_id = self.session_id
-    dbc = self.getConnection()
-    csr = dbc.cursor()
-    sql = "INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?, ?, ?)".format(table_name)
-    cnt = 0
-    for entry in entries:
-      pid = entry['pid']
-      rid = shortuuid.uuid(session_id + pid)
-      dmodified = entry['date_modified'].strftime(SQLITE3_DATE_FORMAT)
-      csr.execute(sql, (rid, session_id, pid, entry['format_id'], dmodified, entry['size']))
-      if cnt % NodeInfo.ROWS_PER_COMMIT == 0:
+    def setupDatabase(self):
+        dbc = self.getConnection()
+        csr = dbc.cursor()
+        sql = (
+            "CREATE TABLE IF NOT EXISTS identifiers_a "
+            "(id TEXT PRIMRY_KEY, sesson_id TEXT, pid TEXT, format_id TEXT, date_modified TEXT, size_bytes INTEGER)"
+        )
+        csr.execute(sql)
+        sql = (
+            "CREATE TABLE IF NOT EXISTS identifiers_b "
+            "(id TEXT PRIMARY KEY, session_id TEXT, pid TEXT, format_id TEXT, date_modified TEXT, size_bytes INTEGER)"
+        )
+        csr.execute(sql)
+        sql = (
+            "CREATE TABLE IF NOT EXISTS metadata "
+            "(id TEXT PRIMARY KEY, t_start TEXT, t_end TEXT, environment TEXT, node_a TEXT, node_b TEXT)"
+        )
+        csr.execute(sql)
         dbc.commit()
-    dbc.commit()
 
+    def getTStamp(self, t=None):
+        if t is None:
+            t = datetime.now(pytz.utc)
+        return t.strftime(SQLITE3_DATE_FORMAT)
 
-  def addNodeA(self, entries, session_id=None):
-    self._addEntries(entries, "identifiers_a", session_id)
+    def startSession(self, environment, node_a, node_b):
+        logging.debug("startSession: %s, %s, %s", environment, node_a, node_b)
+        dbc = self.getConnection()
+        tstart = self.getTStamp()
+        session_id = shortuuid.uuid(tstart)
+        csr = dbc.cursor()
+        tend = ""
+        sql = "INSERT OR REPLACE INTO metadata VALUES (?, ?, ?, ?, ?, ?)"
+        csr.execute(sql, (session_id, tstart, tend, environment, node_a, node_b))
+        dbc.commit()
+        self.session_id = session_id
+        return session_id
 
+    def endSession(self, session_id=None):
+        if session_id is None:
+            session_id = self.session_id
+        if session_id is None:
+            raise ValueError("No session available or specified.")
+        dbc = self.getConnection()
+        tend = self.getTStamp()
+        csr = dbc.cursor()
+        sql = "UPDATE metadata SET t_end=? WHERE id=?"
+        csr.execute(sql, (tend, session_id))
+        dbc.commit()
 
-  def addNodeB(self, entries, session_id=None):
-    self._addEntries(entries, "identifiers_b", session_id)
+    def _addEntries(self, entries, table_name, session_id=None):
+        if session_id is None:
+            session_id = self.session_id
+        dbc = self.getConnection()
+        csr = dbc.cursor()
+        sql = "INSERT OR REPLACE INTO {} VALUES (?, ?, ?, ?, ?, ?)".format(table_name)
+        cnt = 0
+        for entry in entries:
+            pid = entry["pid"]
+            rid = shortuuid.uuid(session_id + pid)
+            dmodified = entry["date_modified"].strftime(SQLITE3_DATE_FORMAT)
+            csr.execute(
+                sql,
+                (rid, session_id, pid, entry["format_id"], dmodified, entry["size"]),
+            )
+            if cnt % NodeInfo.ROWS_PER_COMMIT == 0:
+                dbc.commit()
+        dbc.commit()
+
+    def addNodeA(self, entries, session_id=None):
+        self._addEntries(entries, "identifiers_a", session_id)
+
+    def addNodeB(self, entries, session_id=None):
+        self._addEntries(entries, "identifiers_b", session_id)
 
 
 def dateTimeToText(dt, humanize=False):
-  if dt.tzinfo is None:
-    tz = pytz.timezone("UTC")
-    dt.replace(tzinfo=tz)
-  if humanize:
-    return humanize.naturaltime(dt)
-  return dt.strftime(DATE_FORMAT)
+    if dt.tzinfo is None:
+        tz = pytz.timezone("UTC")
+        dt.replace(tzinfo=tz)
+    if humanize:
+        return humanize.naturaltime(dt)
+    return dt.strftime(DATE_FORMAT)
 
 
 def dateTimeToRelative(dt0, dt1, as_days=False):
-  '''
+    """
   Return number of seconds from dt0 to dt1
-  '''
-  logging.debug(dt0)
-  logging.debug(dt1)
-  if dt0.tzinfo is None:
-    # assume UTC
-    tz = pytz.timezone("UTC")
-    dt0 = dt0.replace(tzinfo=tz)
+  """
+    logging.debug(dt0)
+    logging.debug(dt1)
+    if dt0.tzinfo is None:
+        # assume UTC
+        tz = pytz.timezone("UTC")
+        dt0 = dt0.replace(tzinfo=tz)
 
-  delta = dt1 - dt0
-  if as_days:
-    nsec = delta.seconds + delta.microseconds / 1000000.0
-    return delta.days + nsec / 86400.0
-  return delta.total_seconds()
+    delta = dt1 - dt0
+    if as_days:
+        nsec = delta.seconds + delta.microseconds / 1000000.0
+        return delta.days + nsec / 86400.0
+    return delta.total_seconds()
 
 
 def doListObjects(client, *params, **kvparams):
-  #client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
-  response = client.listObjects(*params, **kvparams)
-  return dataone_response.DataONEResponse( obj=response )
+    # client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+    response = client.listObjects(*params, **kvparams)
+    return dataone_response.DataONEResponse(obj=response)
 
 
 def doListObjectsWithPaging(client, params, callback=None, store=None):
-  L = logging.getLogger("doListObjectswithPaging")
-  max_to_retrieve = MAXIMUM_OBJECTS
-  n_retrieved = 0
-  total_records = -1
-  counter = 0
-  results = []
-  start_index = START_INDEX
-  current_time = datetime.now(pytz.utc)
-  while n_retrieved < max_to_retrieve:
-    res = None
-    kwparams = {'count': PAGE_SIZE,
-                'start': start_index,
-                'fromDate': params['date_start'],
-                'toDate': params['date_end']}
+    L = logging.getLogger("doListObjectswithPaging")
+    max_to_retrieve = MAXIMUM_OBJECTS
+    n_retrieved = 0
+    total_records = -1
+    counter = 0
+    results = []
+    start_index = START_INDEX
+    current_time = datetime.now(pytz.utc)
+    while n_retrieved < max_to_retrieve:
+        res = None
+        kwparams = {
+            "count": PAGE_SIZE,
+            "start": start_index,
+            "fromDate": params["date_start"],
+            "toDate": params["date_end"],
+        }
 
-    if 'node_id' in params:
-      kwparams['nodeId'] = params['node_id']
-    if 'id_filter' in params:
-      kwparams['identifier'] = params['id_filter']
-    if 'fmt_filter' in params:
-      kwparams['formatId'] = params['fmt_filter']
+        if "node_id" in params:
+            kwparams["nodeId"] = params["node_id"]
+        if "id_filter" in params:
+            kwparams["identifier"] = params["id_filter"]
+        if "fmt_filter" in params:
+            kwparams["formatId"] = params["fmt_filter"]
 
-    res = doListObjects(client, **kwparams)
-    if total_records < 0:
-      L.info("Total matching records = %d", res.content.total)
-    if total_records < 0:
-      total_records = int(res.content.total)
-      if max_to_retrieve > total_records:
-        max_to_retrieve = total_records
-    n_retrieved += res.content.count
-    L.info("Retrieved: %d", n_retrieved)
-    start_index = res.content.start + res.content.count
-    page_results = []
-    for entry in res.content.objectInfo:
-      #data = {'counter': counter,
-      #        'size': humanize.naturalsize(entry.size, binary=True),
-      #        'date_modified': dateTimeToText(entry.dateSysMetadataModified),
-      #        'tdelta': dateTimeToRelative(entry.dateSysMetadataModified, current_time, as_days=True),
-      #        'pid': entry.identifier.value().strip(),
-      #        'format_id':entry.formatId}
-      #results.append(data)
-      data = {'size': entry.size,
-              'date_modified': entry.dateSysMetadataModified,
-              'pid': entry.identifier.value().strip(),
-              'format_id':entry.formatId
-              }
-      results.append(data)
-      page_results.append(data)
-      counter += 1
-    if callback is not None:
-      callback(page_results, store)
-  return results
+        res = doListObjects(client, **kwparams)
+        if total_records < 0:
+            L.info("Total matching records = %d", res.content.total)
+        if total_records < 0:
+            total_records = int(res.content.total)
+            if max_to_retrieve > total_records:
+                max_to_retrieve = total_records
+        n_retrieved += res.content.count
+        L.info("Retrieved: %d", n_retrieved)
+        start_index = res.content.start + res.content.count
+        page_results = []
+        for entry in res.content.objectInfo:
+            # data = {'counter': counter,
+            #        'size': humanize.naturalsize(entry.size, binary=True),
+            #        'date_modified': dateTimeToText(entry.dateSysMetadataModified),
+            #        'tdelta': dateTimeToRelative(entry.dateSysMetadataModified, current_time, as_days=True),
+            #        'pid': entry.identifier.value().strip(),
+            #        'format_id':entry.formatId}
+            # results.append(data)
+            data = {
+                "size": entry.size,
+                "date_modified": entry.dateSysMetadataModified,
+                "pid": entry.identifier.value().strip(),
+                "format_id": entry.formatId,
+            }
+            results.append(data)
+            page_results.append(data)
+            counter += 1
+        if callback is not None:
+            callback(page_results, store)
+    return results
 
 
 def getMemberNodePids(client, date_last_modified=None):
 
-  params = {
-    'date_start': None,
-    'date_end': None,
-  }
-  res = doListObjectsWithPaging(client, params)
-  return res
+    params = {"date_start": None, "date_end": None}
+    res = doListObjectsWithPaging(client, params)
+    return res
 
 
 def getCoordinatingNodePids(client, node_id, date_last_modified=None):
-  params = {
-    'date_start': None,
-    'date_end': None,
-    'node_id':node_id}
-  res = doListObjectsWithPaging(client, params)
-  return res
+    params = {"date_start": None, "date_end": None, "node_id": node_id}
+    res = doListObjectsWithPaging(client, params)
+    return res
 
 
 def comparePids(cn_pids, mn_pids):
-  res = {'cn_not_mn': [],
-         'mn_not_cn': []}
-  mn_pidset = set([x['pid'] for x in mn_pids])
-  cn_pidset = set([x['pid'] for x in cn_pids])
-  res['cn_not_mn'] = list(cn_pidset - mn_pidset)
-  res['mn_not_cn'] = list(mn_pidset - cn_pidset)
-  return res
+    res = {"cn_not_mn": [], "mn_not_cn": []}
+    mn_pidset = set([x["pid"] for x in mn_pids])
+    cn_pidset = set([x["pid"] for x in cn_pids])
+    res["cn_not_mn"] = list(cn_pidset - mn_pidset)
+    res["mn_not_cn"] = list(mn_pidset - cn_pidset)
+    return res
 
 
 def renderResults(cn_pids, mn_pids, compare_results, format="json"):
-  print("Identifiers on CN not on MN")
-  c = 1
-  for pid in compare_results['cn_not_mn']:
-    print(("{}: {}".format(c, pid)))
-    c += 1
-  print("===========================")
-  print("Identifiers on MN not on CN")
-  c = 1
-  for pid in compare_results['mn_not_cn']:
-    print(("{}: {}".format(c, pid)))
-    c += 1
+    print("Identifiers on CN not on MN")
+    c = 1
+    for pid in compare_results["cn_not_mn"]:
+        print(("{}: {}".format(c, pid)))
+        c += 1
+    print("===========================")
+    print("Identifiers on MN not on CN")
+    c = 1
+    for pid in compare_results["mn_not_cn"]:
+        print(("{}: {}".format(c, pid)))
+        c += 1
 
 
 def fillPidList(pids, pidinfo):
-  pid_index = [x['pid'] for x in pidinfo]
-  results = []
+    pid_index = [x["pid"] for x in pidinfo]
+    results = []
 
 
 def main(args, config):
-  L = logging.getLogger('main')
-  node_id = args.mn
-  env_nodes = config.envNodes(args.environment)
+    L = logging.getLogger("main")
+    node_id = args.mn
+    env_nodes = config.envNodes(args.environment)
 
-  store = NodeInfo(args.database)
+    store = NodeInfo(args.database)
 
-  client = env_nodes.getClient()
+    client = env_nodes.getClient()
 
-  #getting client triggers load of environment node info
-  store.startSession(args.environment, node_id, env_nodes.primary_node_id)
+    # getting client triggers load of environment node info
+    store.startSession(args.environment, node_id, env_nodes.primary_node_id)
 
-  L.info("Loading CN pids...")
-  cn_pids = getCoordinatingNodePids(client, node_id)
+    L.info("Loading CN pids...")
+    cn_pids = getCoordinatingNodePids(client, node_id)
 
-  store.addNodeB( cn_pids )
+    store.addNodeB(cn_pids)
 
-  client = env_nodes.getClient(node_id)
-  L.info("Loading MN pids...")
-  mn_pids = getMemberNodePids(client)
+    client = env_nodes.getClient(node_id)
+    L.info("Loading MN pids...")
+    mn_pids = getMemberNodePids(client)
 
-  store.addNodeA( mn_pids )
+    store.addNodeA(mn_pids)
 
-  store.endSession()
+    store.endSession()
 
-  compare_results = comparePids(cn_pids, mn_pids)
-  mn_pid_index = [x['pid'] for x in mn_pids]
-  cn_pid_index = [x['pid'] for x in cn_pids]
-  renderResults(cn_pids, mn_pids, compare_results, format=args.format)
+    compare_results = comparePids(cn_pids, mn_pids)
+    mn_pid_index = [x["pid"] for x in mn_pids]
+    cn_pid_index = [x["pid"] for x in cn_pids]
+    renderResults(cn_pids, mn_pids, compare_results, format=args.format)
 
 
 if __name__ == "__main__":
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('mn',
-                      help="NodeID of Member Node")
-  parser.add_argument('-p', '--page_size',
-                      default=10,
-                      help='Page size to return')
-  parser.add_argument('-s', '--start_index',
-                      default=0,
-                      help='Zero based index of first entry')
-  parser.add_argument('-d', '--database',
-                      default="pidcompare.sq3",
-                      help='SQLite3 database to store results')
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("mn", help="NodeID of Member Node")
+    parser.add_argument("-p", "--page_size", default=10, help="Page size to return")
+    parser.add_argument(
+        "-s", "--start_index", default=0, help="Zero based index of first entry"
+    )
+    parser.add_argument(
+        "-d",
+        "--database",
+        default="pidcompare.sq3",
+        help="SQLite3 database to store results",
+    )
 
-  args, config = d1_admin_tools.defaultScriptMain(parser)
-  main(args, config)
+    args, config = d1_admin_tools.defaultScriptMain(parser)
+    main(args, config)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-'''
+"""
 INCOMPLETE
 
 Check for the presences of an identifier on the coordinating nodes for an envronment.
@@ -11,7 +11,7 @@ This is an administrative tool for evaluating the consistency of an identifier i
 3. is the content retrievable from the resolved locations?
 4. if the content is (metadata or ORE) and not archived, is it in the search index?
 
-'''
+"""
 
 
 import os
@@ -25,161 +25,149 @@ from fabric.contrib import files as fabfiles
 
 
 def sysmetaToText(sysmeta, f=sys.stdout):
-  '''
+    """
 
   :param sysmeta:
   :return:
-  '''
-  pass
-
+  """
+    pass
 
 
 class D1PIDInfo(object):
-
-  def __init__(self, pid, base_urls):
-    '''
+    def __init__(self, pid, base_urls):
+        """
     :param pid: identifier to examine
     :param base_urls: list of CN baseURLs. First entry should be the RR DNS entry.
-    '''
-    self._L = logging.getLogger(self.__class__.__name__)
-    self.pid = pid
-    self.base_urls = base_urls
-    self.client = None
-    self.sysmeta = []
-    self.resolve = []
+    """
+        self._L = logging.getLogger(self.__class__.__name__)
+        self.pid = pid
+        self.base_urls = base_urls
+        self.client = None
+        self.sysmeta = []
+        self.resolve = []
 
+    def _createClient(self, base_url, force_new=False):
+        if self.client is not None:
+            if self.client.base_url == base_url:
+                if not force_new:
+                    return
+        self._L.info("Creating V2 CN client for baseURL %s", base_url)
+        self.client = cnclient_2_0.CoordinatingNodeClient_2_0(
+            base_url, api_major=2, capture_response_body=True
+        )
 
-  def _createClient(self, base_url, force_new=False):
-    if self.client is not None:
-      if self.client.base_url == base_url:
-        if not force_new:
-          return
-    self._L.info("Creating V2 CN client for baseURL %s", base_url)
-    self.client = cnclient_2_0.CoordinatingNodeClient_2_0(base_url,
-            api_major=2,
-            capture_response_body=True)
+    def _getBaseUrls(self, primary_only=True):
+        urls = []
+        if primary_only:
+            urls.append(self.base_urls)[0]
+        else:
+            urls = self.base_urls[1:]
+        return urls
 
+    def getSystemMetadata(self, primary_only=True):
+        self.sysmeta = []
+        urls = self._getBaseUrls(primary_only)
+        for base_url in urls:
+            self._L.info("Retrieving sys meta from %s", base_url)
+            self._createClient(base_url)
+            res = {"object": self.client.getSystemMetadata(self.pid)}
+            res["status"] = self.client.status_code
+            self.sysmeta.append(res)
 
-  def _getBaseUrls(self, primary_only=True):
-    urls = []
-    if primary_only:
-      urls.append(self.base_urls)[0]
-    else:
-      urls = self.base_urls[1:]
-    return urls
+    def getResolve(self, primary_only=True):
+        self.resolve = []
+        urls = self._getBaseUrls(primary_only)
+        for base_url in urls:
+            self._L.info("Resolving from from %s", base_url)
+            self._createClient(base_url)
+            res = {"object": self.client.resolve(self.pid)}
+            res["status"] = self.client.status_code
+            self.resolve.append(res)
 
+    def testGetObject(self, evaluate_checksum=False):
+        pass
 
-  def getSystemMetadata(self, primary_only=True):
-    self.sysmeta = []
-    urls = self._getBaseUrls(primary_only)
-    for base_url in urls:
-      self._L.info("Retrieving sys meta from %s", base_url)
-      self._createClient(base_url)
-      res = {'object': self.client.getSystemMetadata( self.pid ),
-             }
-      res['status'] = self.client.status_code
-      self.sysmeta.append(res)
+    def checkSearchIndex(self):
+        pass
 
-
-  def getResolve(self, primary_only=True):
-    self.resolve = []
-    urls = self._getBaseUrls(primary_only)
-    for base_url in urls:
-      self._L.info("Resolving from from %s", base_url)
-      self._createClient(base_url)
-      res = {'object': self.client.resolve( self.pid ),
-             }
-      res['status'] = self.client.status_code
-      self.resolve.append(res)
-
-
-  def testGetObject(self, evaluate_checksum=False):
-    pass
-
-
-  def checkSearchIndex(self):
-    pass
-
-
-  def getSeriesMembers(self):
-    '''
+    def getSeriesMembers(self):
+        """
 
     :return:
-    '''
-    pass
+    """
+        pass
+
+    def asText(self, outf=sys.stdout):
+        outf.write("Not Implemented...")
 
 
-  def asText(self, outf = sys.stdout):
-    outf.write("Not Implemented...")
-
-
-
-accumulator = {'data':{},
-               'files':{},
-               }
+accumulator = {"data": {}, "files": {}}
 
 
 def setEnvironment(environment):
-    env.hosts = ENVIRONMENTS[environment]['cns']
+    env.hosts = ENVIRONMENTS[environment]["cns"]
 
 
 def _getPIDdocID(pid, pg_readonly="dataone_readonly"):
-    '''
+    """
     Lookup the docid for the provided PID
     :param pid: The PID to lookup.
     :param user: User that command should be run as (postgres)
     :return: The docid for the provided PID or None if not present
-    '''
+    """
     SQL = "SELECT guid, docid, rev FROM identifier WHERE guid IN (SELECT guid"
     SQL += " FROM systemmetadata WHERE "
     SQL += " guid = '" + pid + "');"
-    cmd = "psql -h localhost -U {0} metacat --single-transaction --no-align -t --field-separator ' '".format(pg_readonly)
-    cmd += " -P pager=off --quiet  -c \"" + SQL + "\""
-    res = run( cmd )
+    cmd = "psql -h localhost -U {0} metacat --single-transaction --no-align -t --field-separator ' '".format(
+        pg_readonly
+    )
+    cmd += ' -P pager=off --quiet  -c "' + SQL + '"'
+    res = run(cmd)
     res = res.split(" ")
-    response = {'data':{},
-                'errors':[],
-                }
+    response = {"data": {}, "errors": []}
     try:
-        data = {"pid":res[0],
-                "autogen": res[1],
-                "revision": res[2],
-                "docid": "{1}.{2}".format(*res)}
-        response['data'] = data
+        data = {
+            "pid": res[0],
+            "autogen": res[1],
+            "revision": res[2],
+            "docid": "{1}.{2}".format(*res),
+        }
+        response["data"] = data
     except IndexError as e:
-        response['errors'].append("PID not found in database: \"{0}\"".format(pid))
+        response["errors"].append('PID not found in database: "{0}"'.format(pid))
     return response
 
 
-def getPIDdocID( pid ):
-    res = _getPIDdocID(pid )
-    #print "pid:{pid}\ndocid:{docid}".format(**res)
+def getPIDdocID(pid):
+    res = _getPIDdocID(pid)
+    # print "pid:{pid}\ndocid:{docid}".format(**res)
     print(yaml.dump(res, explicit_start=True))
 
 
 def _confirmDocID(docid):
-    '''
+    """
     Return info about the provided docid on each host requested.
     :param docid:
     :return:
-    '''
-    res = {'exists': False,
-           'size': None,
-           'date_modified': None,
-           'SHA224': None,
-           'head': None,
-           }
+    """
+    res = {
+        "exists": False,
+        "size": None,
+        "date_modified": None,
+        "SHA224": None,
+        "head": None,
+    }
     path = os.path.join(DATADIR, docid)
-    res['exists'] = fabfiles.exists(path)
-    if res['exists']:
-        fhead = run("head \"{0}\"".format(path))
-        res['head'] = str(fhead)
-        #size birth access modified change
-        fstat = run("stat -c \"%s %W %X %Y %Z\" \"{0}\"".format(path)).split()
-        res['size'] = fstat[0]
-        res['date_modified'] = fstat[3]
-        sha224 = run("sha224sum \"{0}\"".format(path))
-        res['SHA224'] = sha224.strip().split(" ")[0]
+    res["exists"] = fabfiles.exists(path)
+    if res["exists"]:
+        fhead = run('head "{0}"'.format(path))
+        res["head"] = str(fhead)
+        # size birth access modified change
+        fstat = run('stat -c "%s %W %X %Y %Z" "{0}"'.format(path)).split()
+        res["size"] = fstat[0]
+        res["date_modified"] = fstat[3]
+        sha224 = run('sha224sum "{0}"'.format(path))
+        res["SHA224"] = sha224.strip().split(" ")[0]
     return res
 
 
@@ -189,65 +177,77 @@ def confirmDocID(docid):
 
 
 def checkFiles():
-    accumulator['files'][env.host] = _confirmDocID(accumulator['data']['data']['docid'])
+    accumulator["files"][env.host] = _confirmDocID(accumulator["data"]["data"]["docid"])
 
 
 def checkPID(pid):
-    data =  _getPIDdocID( pid )
+    data = _getPIDdocID(pid)
     if data is not None:
-        accumulator['data'] = data
+        accumulator["data"] = data
 
 
 def report(show_content=False):
     consistent = True
-    hosts = list(accumulator['files'].keys())
-    checksum = accumulator['files'][hosts[0]]['SHA224']
+    hosts = list(accumulator["files"].keys())
+    checksum = accumulator["files"][hosts[0]]["SHA224"]
     for host in hosts[1:]:
-        if checksum != accumulator['files'][host]['SHA224']:
+        if checksum != accumulator["files"][host]["SHA224"]:
             consistent = False
-    print("""PID: {pid}
+    print(
+        """PID: {pid}
 autogen: {autogen}
 revision: {revision}
-docid: {docid}""".format(**accumulator['data']['data']))
+docid: {docid}""".format(
+            **accumulator["data"]["data"]
+        )
+    )
     print("consistent: {0}".format(str(consistent)))
     if show_content:
-        for host in accumulator['files']:
+        for host in accumulator["files"]:
             print("Host: {0}".format(host))
-            print("""  exists: {exists}
+            print(
+                """  exists: {exists}
   size: {size}
   modified: {date_modified}
   sha224: {SHA224}
   head: {head}
-  """.format(**accumulator['files'][host]))
+  """.format(
+                    **accumulator["files"][host]
+                )
+            )
 
 
 def main():
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-p', '--per_node',
-                      action="store_true",
-                      help="Show per node info for PID")
-  parser.add_argument('pid',
-                      help="Identifier to evaluate")
-  args, config = d1_admin_tools.defaultScriptMain(parser)
-  logger = logging.getLogger('main')
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-p", "--per_node", action="store_true", help="Show per node info for PID"
+    )
+    parser.add_argument("pid", help="Identifier to evaluate")
+    args, config = d1_admin_tools.defaultScriptMain(parser)
+    logger = logging.getLogger("main")
 
-  environment = args.environment
-  pid = args.pid
-  #  pid = "dc9a6703-497a-4891-897f-b6ec08c657802-180_2_Nanno_neg.rdf"
-  #  verbose=1
-  with settings(hide('warnings', 'running', 'stdout', 'stderr'),
-                host_string=ENVIRONMENTS[environment]['primary'],
-                ):
-    logging.info("Getting DocID for {0}".format(pid))
-    accumulator['data'] = _getPIDdocID(pid)
-  for host in ENVIRONMENTS[environment]['cns']:
-    logging.info("Getting content state on {0}".format(host))
-    with settings(hide('warnings', 'running', 'stdout', 'stderr'),
-                  host_string=host):
-      accumulator['files'][host] = _confirmDocID(accumulator['data']['data']['docid'])
-  report(show_content=args.per_node)
+    environment = args.environment
+    pid = args.pid
+    #  pid = "dc9a6703-497a-4891-897f-b6ec08c657802-180_2_Nanno_neg.rdf"
+    #  verbose=1
+    with settings(
+        hide("warnings", "running", "stdout", "stderr"),
+        host_string=ENVIRONMENTS[environment]["primary"],
+    ):
+        logging.info("Getting DocID for {0}".format(pid))
+        accumulator["data"] = _getPIDdocID(pid)
+    for host in ENVIRONMENTS[environment]["cns"]:
+        logging.info("Getting content state on {0}".format(host))
+        with settings(
+            hide("warnings", "running", "stdout", "stderr"), host_string=host
+        ):
+            accumulator["files"][host] = _confirmDocID(
+                accumulator["data"]["data"]["docid"]
+            )
+    report(show_content=args.per_node)
 
 
 if __name__ == "__main__":
-  sys.exit(main())
+    sys.exit(main())

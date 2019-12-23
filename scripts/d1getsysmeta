@@ -1,0 +1,313 @@
+#!/usr/bin/env python
+
+import argparse
+import datetime
+import logging
+import multiprocessing
+import sys
+
+import requests
+
+import d1_client.cnclient_2_0
+import d1_client.iter.objectlist_multi
+import d1_client.iter.sysmeta_multi
+import d1_client.mnclient_1_1
+import d1_client.mnclient_2_0
+import d1_client.solr_client
+import d1_common.checksum
+import d1_common.const
+import d1_common.util
+
+
+# Defaults
+# Default maximum number of identifiers to print
+MAX_PRINT_PIDS = 10
+OBJECT_LIST_PAGE_SIZE = 100
+
+
+def main():
+    log_setup(is_debug=False)
+
+    requests.packages.urllib3.disable_warnings()
+
+    parser = argparse.ArgumentParser(
+        description="Download System Metadata from a CN or MN"
+    )
+    parser.add_argument(
+        "--env",
+        type=str,
+        default="prod",
+        help="Environment, one of {}".format(", ".join(D1_ENV_DICT)),
+    )
+    parser.add_argument(
+        "--page-size",
+        type=int,
+        default=OBJECT_LIST_PAGE_SIZE,
+        help="Number of objects to retrieve in each call",
+    )
+    parser.add_argument(
+        "nodeid",
+        type=str,
+        nargs="?",
+        default=None,
+        help="MN Node ID (full or any part, case insensitive)",
+    )
+    args = parser.parse_args()
+
+    try:
+        download(args)
+    except DownloadError as e:
+        print("Error: {}".format(str(e)))
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("Exit")
+        sys.exit(1)
+
+
+def log_setup(is_debug=False):
+    formatter = logging.Formatter(
+        "%(asctime)s %(levelname)-8s %(message)s", "%Y-%m-%d %H:%M:%S"
+    )
+    console_logger = logging.StreamHandler(sys.stderr)
+    console_logger.setFormatter(formatter)
+    logging.getLogger("").addHandler(console_logger)
+    logging.getLogger("").setLevel(logging.DEBUG if is_debug else logging.INFO)
+
+
+def download(args):
+
+    if args.env not in D1_ENV_DICT:
+        raise DownloadError(
+            "Environment must be one of {}".format(", ".join(D1_ENV_DICT))
+        )
+
+    env_dict = D1_ENV_DICT[args.env]
+    cn_base_url = env_dict["base_url"]
+    cn_client = d1_client.cnclient_2_0.CoordinatingNodeClient_2_0(cn_base_url)
+
+    if args.nodeid is None:
+        raise DownloadError(
+            "Must supply a MN Node ID (full or any part, case insensitive)"
+        )
+
+    # CN
+    cn_node_pyxb = find_node(cn_client, cn_base_url, base_url=env_dict["base_url"])
+    if cn_node_pyxb is None:
+        raise DownloadError("CN Node ID not found on {}".format(cn_base_url))
+    cn_node_id = cn_node_pyxb.identifier.value()
+
+    # MN
+    mn_node_pyxb = find_node(cn_client, cn_base_url, node_id_search_str=args.nodeid)
+    if mn_node_pyxb is None:
+        raise DownloadError(
+            'No match for MN Node ID search "{}" found on {}'.format(
+                node_id, cn_base_url
+            )
+        )
+    mn_node_id = mn_node_pyxb.identifier.value()
+    if mn_node_pyxb.type != "mn":
+        raise DownloadError(
+            'MN Node ID "{}" is a {}. Must be a MN'.format(
+                mn_node_id, mn_node_pyxb.type.upper()
+            )
+        )
+    mn_base_url = mn_node_pyxb.baseURL
+
+    major_version_int = find_node_version(mn_node_pyxb)
+    assert major_version_int in (1, 2)
+
+    # if major_version_int == 1:
+    #   mn_client = d1_client.mnclient_1_1.MemberNodeClient_1_1(mn_base_url)
+    # else:
+    #   mn_client = d1_client.mnclient_2_0.MemberNodeClient_2_0(mn_base_url)
+
+    run(cn_base_url, mn_node_id, args.page_size, major_version_int)
+
+
+def run(cn_base_url, mn_node_id, page_size, major_version):
+    obj_iter = d1_client.iter.sysmeta_multi.SystemMetadataIteratorMulti(
+        cn_base_url,
+        page_size=page_size,
+        major_version=major_version,
+        listObjects_args_dict={"nodeId": mn_node_id},
+    )
+
+    for i, o in enumerate(obj_iter):
+        print("-" * 100)
+        print("RECEIVED {}: {}".format(i, o.identifier.value()))
+        if i == 1000:
+            break
+        # print o
+
+    return
+
+    object_list_iterator = ObjectListIterator(
+        mn_client, page_size=page_size
+    ).object_list()
+
+    start_time = datetime.datetime.now()
+    n_objects = get_object_count(mn_client)
+
+    for i, object_info in enumerate(object_list_iterator):
+
+        print(
+            "{:.2f}% ({:,}/{:,})".format(
+                (i + 1) / float(n_objects) * 100.0, i + 1, n_objects
+            )
+        )
+
+        pid = object_info.identifier.value()
+
+        print(pid)
+
+        mn_sysmeta_pyxb = mn_client.getSystemMetadata(pid)
+        cn_sysmeta_pyxb = cn_client.getSystemMetadata(pid)
+
+        # print d1_common.util.pretty_xml(mn_sysmeta_pyxb.toxml())
+        # print d1_common.util.pretty_xml(cn_sysmeta_pyxb.toxml())
+
+        # print are_sysmeta_equal(mn_sysmeta_pyxb, cn_sysmeta_pyxb)
+
+        are_checksums_equal = d1_common.checksum.checksums_are_equal(
+            mn_sysmeta_pyxb.checksum, cn_sysmeta_pyxb.checksum
+        )
+        are_sizes_equal = mn_sysmeta_pyxb.size == cn_sysmeta_pyxb.size
+
+        if not are_checksums_equal:
+            print(
+                "Checksum mismatch: {} / {}".format(
+                    mn_sysmeta_pyxb.checksum.toxml(), cn_sysmeta_pyxb.checksum.toxml()
+                )
+            )
+
+        if not are_sizes_equal:
+            print(
+                "Size mismatch: {} / {}".format(
+                    mn_sysmeta_pyxb.size, cn_sysmeta_pyxb.size
+                )
+            )
+
+        mn_obsoleted_by = (
+            mn_sysmeta_pyxb.obsoletedBy.value() if mn_sysmeta_pyxb.obsoletedBy else None
+        )
+        cn_obsoleted_by = (
+            cn_sysmeta_pyxb.obsoletedBy.value() if cn_sysmeta_pyxb.obsoletedBy else None
+        )
+        if mn_obsoleted_by != cn_obsoleted_by:
+            print(
+                "ObsoletedBy mismatch: {} / {}".format(mn_obsoleted_by, cn_obsoleted_by)
+            )
+
+        mn_archived = mn_sysmeta_pyxb.archived
+        cn_archived = cn_sysmeta_pyxb.archived
+        if mn_archived != cn_archived:
+            print("Archived mismatch: {} / {}".format(mn_archived, cn_archived))
+
+        #
+        # mn_sciobj_str = mn_client.get(pid).read()
+        # cn_sciobj_str = cn_client.get(pid).read()
+        #
+        # if mn_sciobj_str != cn_sciobj_str:
+        #   print 'Object content mismatch. mn_len={}, cn_len={}'.format(len(mn_sciobj_str), len(cn_sciobj_str))
+        #
+        # mn_algo_str = mn_sysmeta_pyxb.checksum.algorithm
+        # mn_checksum_calc_pyxb = d1_common.checksum.create_checksum_object(mn_sciobj_str, mn_algo_str)
+        # if not d1_common.checksum.checksums_are_equal(mn_checksum_calc_pyxb, cn_sysmeta_pyxb.checksum):
+        #   print 'Calculated checksum mismatch: {} / {}'.format(mn_checksum_calc_pyxb, cn_sysmeta_pyxb.checksum.toxml())
+
+
+def find_node(cn_client, display_str, node_id_search_str=None, base_url=None):
+    print(
+        '{}: Searching NodeList for "{}"...'.format(
+            display_str, node_id_search_str if node_id_search_str else base_url
+        )
+    )
+    for node_pyxb in nodeListIterator(cn_client):
+        if (
+            node_id_search_str
+            and node_id_search_str.lower() in node_pyxb.identifier.value().lower()
+        ) or node_pyxb.baseURL == base_url:
+            return node_pyxb
+
+
+def find_node_version(node_pyxb):
+    major_version_list = []
+    for s in node_pyxb.services.service:
+        major_version_list.append(int(s.version[1:]))
+    return max(major_version_list)
+
+
+def get_object_count(client, node_id_filter_str=None):
+    return client.listObjects(nodeId=node_id_filter_str, count=0).total
+
+
+class DownloadError(Exception):
+    pass
+
+
+class ObjectListIterator(object):
+    LIST_OBJECTS_PAGE_SIZE = 1000
+
+    def __init__(
+        self,
+        client,
+        node_id=None,
+        object_format=None,
+        replica_status=None,
+        current_start=0,
+        page_size=LIST_OBJECTS_PAGE_SIZE,
+    ):
+        self._client = client
+        self._node_id = node_id
+        self._object_format = object_format
+        self._replica_status = replica_status
+        self._current_start = current_start
+        self._page_size = page_size
+
+    def object_list(self):
+        while True:
+            try:
+                object_list = self._client.listObjects(
+                    start=self._current_start,
+                    count=self._page_size,
+                    nodeId=self._node_id,
+                    objectFormat=self._object_format,
+                    replicaStatus=self._replica_status,
+                )
+            except Exception as e:
+                # pass
+                # logging.exception(str(e))
+                # print self._client.last_response_body
+                # raise
+                continue
+            else:
+                logging.debug(
+                    "Retrieved page: {}/{}".format(
+                        self._current_start / self._page_size + 1,
+                        object_list.total / self._page_size,
+                    )
+                )
+
+            for d1_object in object_list.objectInfo:
+                yield d1_object
+
+            self._current_start += object_list.count
+            if self._current_start >= object_list.total:
+                break
+
+
+def nodeListIterator(client):
+    try:
+        node_list_pyxb = client.listNodes()
+    except Exception as e:
+        logging.exception(str(e))
+        raise
+    else:
+        logging.debug("Retrieved {} Node documents".format(len(node_list_pyxb.node)))
+    for node_pyxb in sorted(node_list_pyxb.node, key=lambda x: x.identifier.value()):
+        yield node_pyxb
+
+
+if __name__ == "__main__":
+    multiprocessing.freeze_support()
+    sys.exit(main())

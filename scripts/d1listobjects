@@ -13,179 +13,194 @@ import pytz
 import d1_admin_tools
 from d1_admin_tools import dataone_response
 
-#YYYY-MM-DDTHH:MM:SS.mmm+00:00
+# YYYY-MM-DDTHH:MM:SS.mmm+00:00
 DATAONE_DATE_FORMAT = "%Y-%m-%dT%H:%M:%S.%f%z"
 DATE_FORMAT = "%Y-%m-%dT%H:%M:%SZ"
 
+
 def doListObjects(client, *params, **kvparams):
-  #client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
-  response = client.listObjects(*params, **kvparams)
-  return dataone_response.DataONEResponse( obj=response )
+    # client = d1baseclient_2_0.DataONEBaseClient_2_0(base_url, capture_response_body=True)
+    response = client.listObjects(*params, **kvparams)
+    return dataone_response.DataONEResponse(obj=response)
 
 
 def dateTimeToText(dt, humanize=False):
-  if dt.tzinfo is None:
-    tz = pytz.timezone("UTC")
-    dt.replace(tzinfo=tz)
-  if humanize:
-    return humanize.naturaltime(dt)
-  return dt.strftime(DATE_FORMAT)
-  
-  
+    if dt.tzinfo is None:
+        tz = pytz.timezone("UTC")
+        dt.replace(tzinfo=tz)
+    if humanize:
+        return humanize.naturaltime(dt)
+    return dt.strftime(DATE_FORMAT)
+
+
 def dateTimeToRelative(dt0, dt1, as_days=False):
-  '''
+    """
   Return number of seconds from dt0 to dt1
-  '''
-  if dt0.tzinfo is None:
-    # assume UTC
-    tz = pytz.timezone("UTC")
-    dt0 = dt0.replace(tzinfo=tz)
-  if dt1.tzinfo is None:
-    # assume UTC
-    tz = pytz.timezone("UTC")
-    dt1 = dt1.replace(tzinfo=tz)
-  delta = dt1-dt0
-  if as_days:
-    nsec = delta.seconds + delta.microseconds / 1000000.0
-    return delta.days + nsec / 86400.0
-  return delta.total_seconds()
-  
+  """
+    if dt0.tzinfo is None:
+        # assume UTC
+        tz = pytz.timezone("UTC")
+        dt0 = dt0.replace(tzinfo=tz)
+    if dt1.tzinfo is None:
+        # assume UTC
+        tz = pytz.timezone("UTC")
+        dt1 = dt1.replace(tzinfo=tz)
+    delta = dt1 - dt0
+    if as_days:
+        nsec = delta.seconds + delta.microseconds / 1000000.0
+        return delta.days + nsec / 86400.0
+    return delta.total_seconds()
+
 
 def main():
-  '''
+    """
   -c --config:      optional path to configuration
   -e --environment: name of environment
   -f --format:      name of output format
   -l --log_level:   flag to turn on logging, more means more detailed logging.
 
   :return: int for sys.exit()
-  '''
-  parser = argparse.ArgumentParser(description=__doc__,
-    formatter_class=argparse.RawDescriptionHelpFormatter)
-  parser.add_argument('-B', '--base_url',
-                      default=None,
-                      help='Base URL of node to connect with (overrides -e)')
-  parser.add_argument('-p', '--page_size',
-                      default=10,
-                      help='Page size to return')
-  parser.add_argument('-s', '--start_index',
-                      default=0,
-                      help='Zero based index of first entry')
-  parser.add_argument('-I','--only_identifiers',
-                      action='store_true',
-                      default=False,
-                      help='Only output the identifiers.')
-  parser.add_argument('-C', '--max_records',
-                      default=5,
-                      help='Maximum number of entries to retrieve.')
-  parser.add_argument('-N', '--node_id',
-                      default=None,
-                      help='Limit response to content from specified NodeId.')
-  parser.add_argument('-x', '--date_start',
-                      default=None,
-                      help='Earliest modified date for records.')
-  parser.add_argument('-y', '--date_end',
-                      default=None,
-                      help='Most recent modified date for records.')
-  parser.add_argument('-V', '--api_version',
-                      default="2",
-                      help='API version to use for request (default = "2")')
-  parser.add_argument('-i', '--idfilter',
-                      default=None,
-                      help='Restrict results to the specified identifier')
-  parser.add_argument('-F', '--fmtfilter',
-                      default=None,
-                      help='Restrict results to the specified format id')
-  parser.add_argument('-r','--relative',
-                      default=False,
-                      action='store_true',
-                      help='Show date modified as days relative to now.')
-  args, config = d1_admin_tools.defaultScriptMain(parser)
-  logger = logging.getLogger('main')
-  if args.api_version not in ["1", "2"]:
-    logger.error("API version must be '1' or '2', not '%s'", args.api_version)
-    return 1
-  base_url = args.base_url
-  if base_url is None:
-    node_id = config.envPrimaryNodeId(args.environment)
-  logger.info("Base URL = %s", base_url)
-  n_retrieved = 0
-  date_start = None
-  date_end = None
-  if args.date_start is not None:
-    date_start = d1_admin_tools.textToDateTime(args.date_start)
-    logger.info("date_start '%s' parsed as %s", args.date_start, str(date_start))
-  if args.date_end is not None:
-    date_end = d1_admin_tools.textToDateTime(args.date_end)
-    logger.info("date_end '%s' parsed as %s", args.date_end, str(date_end))
-  if int(args.page_size) > int(args.max_records):
-    args.page_size = int(args.max_records)
-  max_to_retrieve = int(args.max_records)
-  start_index = args.start_index
-  total_records = -1
-  counter = int(start_index)
-  client = None
-  if not base_url is None:
-    if args.api_version == '2':
-      from d1_client import baseclient_2_0
-      client = baseclient_2_0.DataONEBaseClient_2_0(base_url)
-    else:
-      from d1_client import baseclient_1_1
-      client = baseclient_1_1.DataONEBaseClient_1_1(base_url)
-  else:
-    env_nodes = config.envNodes(args.environment)
-    client = env_nodes.getClient(node_id)
+  """
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument(
+        "-B", "--base_url", help="Base URL of node to connect with (overrides -e)"
+    )
+    parser.add_argument("-p", "--page_size", default=10, help="Page size to return")
+    parser.add_argument(
+        "-s", "--start_index", default=0, help="Zero based index of first entry"
+    )
+    parser.add_argument(
+        "-I",
+        "--only_identifiers",
+        action="store_true",
+        help="Only output the identifiers.",
+    )
+    parser.add_argument(
+        "-C", "--max_records", default=5, help="Maximum number of entries to retrieve."
+    )
+    parser.add_argument(
+        "-N", "--node_id", help="Limit response to content from specified NodeId."
+    )
+    parser.add_argument(
+        "-x", "--date_start", help="Earliest modified date for records."
+    )
+    parser.add_argument(
+        "-y", "--date_end", help="Most recent modified date for records."
+    )
+    parser.add_argument(
+        "-V",
+        "--api_version",
+        default="2",
+        help='API version to use for request (default = "2")',
+    )
+    parser.add_argument(
+        "-i", "--idfilter", help="Restrict results to the specified identifier"
+    )
+    parser.add_argument(
+        "-F", "--fmtfilter", help="Restrict results to the specified format id"
+    )
+    parser.add_argument(
+        "-r",
+        "--relative",
+        action="store_true",
+        help="Show date modified as days relative to now.",
+    )
+    args, config = d1_admin_tools.defaultScriptMain(parser)
+    logger = logging.getLogger("main")
+    if args.api_version not in ["1", "2"]:
+        logger.error("API version must be '1' or '2', not '%s'", args.api_version)
+        return 1
+    base_url = args.base_url
+    if base_url is None:
+        node_id = config.envPrimaryNodeId(args.environment)
+    logger.info("Base URL = %s", base_url)
+    n_retrieved = 0
+    date_start = None
+    date_end = None
+    if args.date_start is not None:
+        date_start = d1_admin_tools.textToDateTime(args.date_start)
+        logger.info("date_start '%s' parsed as %s", args.date_start, str(date_start))
+    if args.date_end is not None:
+        date_end = d1_admin_tools.textToDateTime(args.date_end)
+        logger.info("date_end '%s' parsed as %s", args.date_end, str(date_end))
+    if int(args.page_size) > int(args.max_records):
+        args.page_size = int(args.max_records)
+    max_to_retrieve = int(args.max_records)
+    start_index = args.start_index
+    total_records = -1
+    counter = int(start_index)
+    client = None
+    if not base_url is None:
+        if args.api_version == "2":
+            from d1_client import baseclient_2_0
 
-  current_time = datetime.now(pytz.utc)
-  start_index = args.start_index
-  while n_retrieved < max_to_retrieve:
-    res = None
-    kwparams = {'count':args.page_size,
-                'start': start_index,
-                'fromDate': date_start,
-                'toDate': date_end}
-    if args.node_id is not None:
-      kwparams['nodeId'] = args.node_id
-    if args.idfilter is not None:
-      kwparams['identifier'] = args.idfilter
-    if args.fmtfilter is not None:
-      kwparams['formatId'] = args.fmtfilter
-
-    res = doListObjects(client, **kwparams)
-    if total_records < 0:
-      logger.info("Total matching records = %d", res.content.total)
-    if total_records < 0:
-      total_records = int(res.content.total)
-      if max_to_retrieve > total_records:
-        max_to_retrieve = total_records
-    n_retrieved += res.content.count
-    logger.info("Retrieved: %d", n_retrieved)
-    start_index = res.content.start + res.content.count
-    if args.format == 'xml':
-      print((res.asXML()))
-    else:
-      for entry in res.content.objectInfo:
-        data = {'counter': counter,
-                'size': humanize.naturalsize(entry.size, binary=True),
-                'date_modified': dateTimeToText(entry.dateSysMetadataModified),
-                'tdelta': dateTimeToRelative(entry.dateSysMetadataModified, current_time, as_days=True),
-                'pid': entry.identifier.value().strip(),
-                'format_id':entry.formatId}
-        if args.only_identifiers:
-          print(("{pid}".format(**data)))
+            client = baseclient_2_0.DataONEBaseClient_2_0(base_url)
         else:
-          row = ["{counter:0>6}:".format(**data), ]
-          row.append( "{size:>11} ".format(**data) )
-          if args.relative:
-            row.append( "{tdelta:8.2f} ".format(**data) )
-          else:
-            row.append( "{date_modified:<21}".format(**data) )
-          row.append( "{format_id:<45}".format(**data) )
-          row.append( "{pid}".format(**data) )
-          print(( " ".join(row) ))
-        counter += 1
-  return 0
+            from d1_client import baseclient_1_1
+
+            client = baseclient_1_1.DataONEBaseClient_1_1(base_url)
+    else:
+        env_nodes = config.envNodes(args.environment)
+        client = env_nodes.getClient(node_id)
+
+    current_time = datetime.now(pytz.utc)
+    start_index = args.start_index
+    while n_retrieved < max_to_retrieve:
+        res = None
+        kwparams = {
+            "count": args.page_size,
+            "start": start_index,
+            "fromDate": date_start,
+            "toDate": date_end,
+        }
+        if args.node_id is not None:
+            kwparams["nodeId"] = args.node_id
+        if args.idfilter is not None:
+            kwparams["identifier"] = args.idfilter
+        if args.fmtfilter is not None:
+            kwparams["formatId"] = args.fmtfilter
+
+        res = doListObjects(client, **kwparams)
+        if total_records < 0:
+            logger.info("Total matching records = %d", res.content.total)
+        if total_records < 0:
+            total_records = int(res.content.total)
+            if max_to_retrieve > total_records:
+                max_to_retrieve = total_records
+        n_retrieved += res.content.count
+        logger.info("Retrieved: %d", n_retrieved)
+        start_index = res.content.start + res.content.count
+        if args.format == "xml":
+            print(res.asXML())
+        else:
+            for entry in res.content.objectInfo:
+                data = {
+                    "counter": counter,
+                    "size": humanize.naturalsize(entry.size, binary=True),
+                    "date_modified": dateTimeToText(entry.dateSysMetadataModified),
+                    "tdelta": dateTimeToRelative(
+                        entry.dateSysMetadataModified, current_time, as_days=True
+                    ),
+                    "pid": entry.identifier.value().strip(),
+                    "format_id": entry.formatId,
+                }
+                if args.only_identifiers:
+                    print("{pid}".format(**data))
+                else:
+                    row = ["{counter:0>6}:".format(**data)]
+                    row.append("{size:>11} ".format(**data))
+                    if args.relative:
+                        row.append("{tdelta:8.2f} ".format(**data))
+                    else:
+                        row.append("{date_modified:<21}".format(**data))
+                    row.append("{format_id:<45}".format(**data))
+                    row.append("{pid}".format(**data))
+                    print(" ".join(row))
+                counter += 1
+    return 0
 
 
-if __name__ == '__main__':
-  sys.exit( main() )
+if __name__ == "__main__":
+    sys.exit(main())
