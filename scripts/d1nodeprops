@@ -2,7 +2,7 @@
 CRUD operations on protected node properties.
 
 IMPORTANT:
-  This script won't work without a direct or tunnelled connection to a CN
+  This script won't work without a direct or tunneled connection to a CN
   LDAP server. e.g.:
 
     ssh -L3890:localhost:389 cn-dev-ucsb-1.test.dataone.org
@@ -104,7 +104,7 @@ def main():
                          " ,".join(d1np.ALLOWED_PROPERTIES)))
   parser.add_argument('-o', '--operation',
                       default='read',
-                      help='Operation to perform (read, update, list)') 
+                      help='Operation to perform (read, update, list)')
   parser.add_argument('-p', '--password',
                       default=None,
                       help='LDAP bind password for cn=admin,dc=dataone,dc=org')
@@ -129,9 +129,9 @@ def main():
   conn = d1np.getLDAPConnection(host=args.host,
                                 password=args.password)
   if operation == 'list':
-    res = d1np.listNodes(conn, attrs=['d1NodeId', 
-                                      'd1NodeApproved', 
-                                      'd1NodeState', 
+    res = d1np.listNodes(conn, attrs=['d1NodeId',
+                                      'd1NodeApproved',
+                                      'd1NodeState',
                                       'd1NodeSynchronize',
                                       'd1NodeReplicate',])
     nwidth = 0

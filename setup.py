@@ -114,7 +114,8 @@ setup(
              'scripts/d1logintoken',
              'scripts/d1auditreplicas',
              'scripts/d1ppids',
-#             'scripts/httpcli',
+#            'scripts/httpcli',
+             'scripts/d1dns',
              ],
 
     # To provide executable scripts, use entry points in preference to the

@@ -1,0 +1,702 @@
+"""
+Given an identifier in a package, use the solr index
+to find all the identifiers in the package.
+"""
+
+import sys
+import logging
+import argparse
+import asyncio
+import concurrent.futures
+from aiohttp import ClientSession
+import json
+from pprint import pprint
+import d1_admin_tools
+
+PRODUCTION_SOLR = "https://cn.dataone.org/cn/v2/query/solr/"
+
+# List of characters that should be escaped in solr query terms
+SOLR_RESERVED_CHAR_LIST = [
+    "+",
+    "-",
+    "&",
+    "|",
+    "!",
+    "(",
+    ")",
+    "{",
+    "}",
+    "[",
+    "]",
+    "^",
+    '"',
+    "~",
+    "*",
+    "?",
+    ":",
+]
+
+
+class JSONObjectEncoder(json.JSONEncoder):
+    def default(self, o):
+        try:
+            iterable = iter(o)
+        except TypeError:
+            pass
+        else:
+            return list(iterable)
+        return o.__dict__
+
+
+def escapeSolrQueryTerm(term):
+    """
+  Escape a solr query term for solr reserved characters
+  Args:
+    term: query term to be escaped
+
+  Returns: string, the escaped query term
+  """
+    term = term.replace("\\", "\\\\")
+    for c in SOLR_RESERVED_CHAR_LIST:
+        term = term.replace(c, "\{}".format(c))
+    return term
+
+
+def quoteSolrTerm(term):
+    """
+  Return a quoted, escaped Solr query term
+  Args:
+    term: (string) term to be escaped and quoted
+
+  Returns: (string) quoted, escaped term
+  """
+    return f'"{escapeSolrQueryTerm(term)}"'
+
+
+class IDResolver(object):
+    def __init__(self, solr_url=None, session=None):
+        self._L = logging.getLogger(self.__class__.__name__)
+        if solr_url is None:
+            solr_url = PRODUCTION_SOLR
+        self._solr_url = solr_url
+        self._session = session
+
+    def getSession(self):
+        if self._session is None:
+            # self._session = requests.Session()
+            self._session = ClientSession()
+        return self._session
+
+    async def GET(self, params, url=None):
+        if url is None:
+            url = self._solr_url
+        session = self.getSession()
+        async with session.get(url, params=params) as response:
+            res = {
+                "status": response.status,
+                "body": await response.text(),
+                "data": None,
+            }
+            if res["status"] == 200:
+                try:
+                    res["data"] = json.loads(res["body"])
+                except json.JSONDecodeError as e:
+                    pass
+            return res
+
+    def _get_doc_value(self, doc, name, default=None):
+        """
+        Given a doc, return element with name or default if not found.
+        Args:
+            name:
+            default:
+
+        Returns:
+        """
+        try:
+            return doc[name]
+        except KeyError:
+            return default
+
+
+R_HAS_SID = "has_sid"
+R_OBSOLETES = "obsoletes"
+R_OBSOLETED_BY = "obsoleted_by"
+R_DOCUMENTS = "documents"
+R_DOCUMENTED_BY = "is_documented_by"
+R_REPLICA = "has_replica"
+
+class OBJ(object):
+    """
+    Basic object abstraction for DataONE content.
+
+    All references to other objects use PIDs here.
+    """
+
+    def __init__(self, pid):
+        self.__slots__ = (
+            "pid",
+            "sid",
+            "format_id",
+            "obsoleted_by",
+            "obsoletes",
+            "replicas",
+            "documents",
+            "is_documented_by˚",
+        )
+        self.pid = pid
+        self.sid = None
+        self.format_id = None
+        self.format_type = None
+        self.obsoleted_by = None
+        self.obsoletes = None
+        self.replicas = []  #list of node-ids
+        self.documents = []
+        self.is_documented_by = []
+
+    def __str__(self):
+        return json.dumps(self, cls=JSONObjectEncoder, indent=2)
+
+    @property
+    def is_obsolete(self):
+        return self.obsoleted_by is not None
+
+    @property
+    def does_obsolete(self):
+        return self.obsoletes is not None
+
+    @property
+    def relations(self):
+        """
+        Retrieve a list of the relations of this object
+        A relation is a triple, with subject = self PID, object = some PID, and predicate = relationship
+        """
+        r = []
+        if self.sid is not None:
+            r.append((self.pid, R_HAS_SID, self.sid))
+        if self.obsoletes is not None:
+            r.append((self.pid, R_OBSOLETES, self.obsoletes))
+        if self.obsoleted_by is not None:
+            r.append((self.pid, R_OBSOLETED_BY, self.obsoleted_by))
+        for d in self.documents:
+            r.append((self.pid, R_DOCUMENTS, d))
+        for d in self.is_documented_by:
+            r.append((self.pid, R_DOCUMENTED_BY, d))
+        for d in self.replicas:
+            r.append((self.pid, R_REPLICA, d))
+        return r
+
+
+class OBJRevisions(object):
+    def __init__(self):
+        self.sid = None
+        self.objs = []  # List of OBJ instances, most current is last
+
+    def __str__(self):
+        return json.dumps(self, cls=JSONObjectEncoder, indent=2)
+
+    @property
+    def pid(self):
+        h = self.head
+        if not h is None:
+            return h.pid
+        return None
+
+    @property
+    def format_type(self):
+        h = self.head
+        if not h is None:
+            return h.format_type
+        return None
+
+    @property
+    def head(self):
+        """
+        Get the current OBJ of the revisions
+
+        Returns: instance of OBJ or None
+        """
+        try:
+            return self.objs[0]
+        except IndexError:
+            pass
+        return None
+
+    def getObj(self, pid):
+        for o in self.objs:
+            if o.pid == pid:
+                return o
+        return None
+
+    @property
+    def obsolescence_chain(self):
+        """
+        Ordered list of obsoleted objects, current is index 0
+        Returns: list of identifier strings
+        """
+        obj = self.head
+        res = []
+        while not obj is None:
+            res.append(obj.pid)
+            obj = self.getObj(obj.obsoletes)
+        return res
+
+
+class Package(object):
+    """
+    Representation of a data package OBJ instances.
+
+    All the OBJRevisions associated with the package are held in the ``ids`` list. The relationships
+    between ids are held in the ``relations`` list. Each relation is a ``(subject, predicate, object)``
+    where ``subject`` and ``object`` are indexes into ids, and ``predicate`` indicates the relation
+    between the objects.
+
+    Predicates include:
+        ``documents``: subject documents the object
+        ``is_documented_by``: subject is documented by the object
+        ``aggregates``: subject aggregates the object
+    """
+
+    def __init__(self, obj):
+        assert obj.format_type == "RESOURCE"
+        self._pid_index = 0  # Index of the ORE OBJ in the list of ids
+        self._oids = [obj]  # A list of OBJRevisions
+        self._relations = []  # Relations between the OBJRevisions instances
+
+    def __str__(self):
+        res = f"PID:{self._oid(self._oids[self._pid_index])}\n"
+        idx = 0
+        for an_id in self._oids:
+            if isinstance(an_id, OBJ):
+                res += f"{idx}: {an_id.pid}\n"
+            else:
+                res += f"{idx}: {an_id}\n"
+            idx += 1
+        for rel in self._relations:
+            res += str(rel) + "\n"
+        return res
+        # return json.dumps(self, cls=JSONObjectEncoder, indent=2)
+
+    def _oid(self, o):
+        if isinstance(o, OBJ):
+            return o.pid
+        if isinstance(o, OBJRevisions):
+            return o.pid
+        return o
+
+    def getObj(self, an_id):
+        """
+        Return (index, obj) of object with pid or sid = an_id
+        Args:
+            an_id:
+
+        Returns: (index, obj)
+        """
+        an_id = self._oid(an_id)
+        if an_id is None:
+            return (-1, None)
+        idx = 0
+        for obj in self._oids:
+            if isinstance(obj, OBJ):
+                if obj.pid == an_id or obj.sid == an_id:
+                    logging.debug(f"getObj OBJ match {an_id} == {obj.pid} | {obj.sid}")
+                    return idx, obj
+            elif isinstance(obj, OBJRevisions):
+                an_obj = obj.head
+                if an_obj.pid == an_id or an_obj.sid == an_id:
+                    logging.debug(
+                        f"getObj OBJRevisions match {an_id} == {an_id.pid} | {an_id.sid}"
+                    )
+                    return idx, obj
+            else:  # it's just an ID
+                if obj == an_id:
+                    logging.debug(f"getObj pid match {an_id} == {obj}")
+                    return idx, obj
+            idx += 1
+        return (-1, None)
+
+    def _getRelation(self, O, P, S):
+        idx = 0
+        for R in self._relations:
+            if R[0] == O and R[1] == P and R[2] == S:
+                return idx
+            idx += 1
+        return -1
+
+    def addObject(self, A, B, predicate):
+        is_existing = True
+        logging.debug(f"addObject A:{self._oid(A)} {predicate} B:{self._oid(B)}")
+        a_index, a_obj = self.getObj(A)
+        if a_index < 0:
+            self._oids.append(A)
+            a_index = len(self._oids) - 1
+            is_existing = False
+        b_index, b_obj = self.getObj(B)
+        if b_index < 0:
+            self._oids.append(B)
+            b_index = len(self._oids) - 1
+            is_existing = False
+        rindex = -1
+        # if is_existing:
+        rindex = self._getRelation(a_index, predicate, b_index)
+        if rindex < 0:
+            self._relations.append((a_index, predicate, b_index))
+            rindex = len(self._relations) - 1
+        return rindex
+
+    @property
+    def pid(self):
+        try:
+            return self._oid(self._oids[0])
+        except AttributeError:
+            pass
+        return None
+
+
+class IDFamily(IDResolver):
+    def __init__(self, solr_url=None, session=None):
+        super().__init__(solr_url=solr_url, session=session)
+        self._L = logging.getLogger(self.__class__.__name__)
+        self._cache = {}
+
+    def clearCache(self):
+        self._cache = {}
+
+    def _objFromDoc(self, doc):
+        obj = OBJ(doc["id"])
+        obj.sid = self._get_doc_value(doc, "sid")
+        obj.format_id = self._get_doc_value(doc, "formatId")
+        obj.format_type = self._get_doc_value(doc, "formatType")
+        obj.obsoleted_by = self._get_doc_value(doc, "obsoletedBy")
+        obj.obsoletes = self._get_doc_value(doc, "obsoletes")
+        replicas = self._get_doc_value(doc, "replicaMN", [])
+        obj.replicas = set(replicas)
+        documents = self._get_doc_value(doc, "documents", [])
+        obj.documents = set(documents)
+        documented_by = self._get_doc_value(doc, "isDocumentedBy", [])
+        obj.is_documented_by = set(documented_by)
+        return obj
+
+    async def pidOrSid(self, an_id):
+        """
+        If an_id is a PID, retrieve info about that object. If a SID then info about the
+        object at the head of the obsolescence chain.
+
+        Args:
+          an_id:
+
+        Returns: instance of OBJ
+        """
+        try:
+            obj = self._cache[an_id]
+            if obj.format_type is not None:
+                return obj
+        except:
+            pass
+        params = dict(
+            wt="json",
+            fl="id,seriesId,formatId,formatType,obsoletedBy,obsoletes,replicaMN,documents,isDocumentedBy",
+            q="",
+        )
+        params["q"] = f"id:{quoteSolrTerm(an_id)} OR seriesId:{quoteSolrTerm(an_id)}"
+        response = await self.GET(params)
+        candidate = None
+        # We don't know if it's a pid or a sid, and if a sid, then there may be
+        # multiple items. In that case, need to find and return the head of the chain.
+        try:
+            sid = None
+            for doc in response["data"]["response"]["docs"]:
+                pid = doc["id"]
+                nsid = self._get_doc_value(doc, "sid")
+                if sid is None:
+                    sid = nsid
+                candidate = self._objFromDoc(doc)
+                candidate.sid = sid
+                if pid == an_id:
+                    # special case: an_id was a pid and we have the match
+                    return candidate
+                if candidate.sid is not None and not candidate.is_obsolete:
+                    # special case: has a sid and is head of chain
+                    return candidate
+            # should never reach here except in an inconsistent state such as
+            # every object has a sid but all are obsolete
+            # nothing more to do than return a candidate
+            # return candidate
+        except KeyError as e:
+            self._L.error(e)
+        candidate = OBJ(an_id)
+        self._cache[candidate.pid] = candidate
+        return candidate
+
+    async def pidsOrSids(self, ids):
+        results = []
+        tasks = []
+        for an_id in ids:
+            tasks.append(asyncio.ensure_future(self.pidOrSid(an_id)))
+        for response in await asyncio.gather(*tasks):
+            results.append(response)
+        return results
+
+    async def getObsoletes(self, pid):
+        """
+        Retrieve the identifiers of the chain of objects obsoleted by pid.
+
+        Given: ``pid -> C -> D``, returns ``[C, D]``
+
+        Args:
+          pid: PID of object that obsoletes zero or more others
+
+        Returns: list of PIDs not including pid, with most recent first.
+        """
+        params = {"wt": "json", "fl": "id,obsoletes", "q": ""}
+        result = []
+        c_id = pid
+        while True:
+            params["q"] = f"id:{quoteSolrTerm(c_id)} AND obsoletes:[* TO *]"
+            response = await self.GET(params)
+            try:
+                c_id = response["data"]["response"]["docs"][0]["obsoletes"]
+                result.append(c_id)
+            except:
+                break
+        return ["obsoletes", result]
+
+    async def getObsoletedBy(self, pid):
+        """
+        Retrieve the identifiers of the chain of objects that obsolete pid.
+
+        Given: ``A -> B -> pid``, returns ``[A, B]``
+
+        Args:
+          pid: PID of object that is obsoleted by zero of more others.
+
+        Returns: list of PIDs not including pid, with most immediate obsoleter last.
+        """
+        params = {"wt": "json", "fl": "id,obsoletedBy", "q": ""}
+        result = []
+        c_id = pid
+        while True:
+            params["q"] = f"id:{quoteSolrTerm(c_id)} AND obsoletedBy:[* TO *]"
+            response = await self.GET(params)
+            try:
+                c_id = response["data"]["response"]["docs"][0]["obsoletedBy"]
+                result.append(c_id)
+            except:
+                break
+        result.reverse()
+        return ["obsoletedBy", result]
+
+    async def getObsolescence(self, pid):
+        """
+        Retrieve the complete obsolescence chain for pid.
+
+        Given ``A -> B -> pid -> C -> D``, returns ``[A, B, pid, C, D]``
+
+        Args:
+          pid: a PID
+
+        Returns: list of identifiers, unobsoleted first.
+        """
+        result = {}
+        tasks = []
+        tasks.append(asyncio.ensure_future(self.getObsoletedBy(pid)))
+        tasks.append(asyncio.ensure_future(self.getObsoletes(pid)))
+        for response in await asyncio.gather(*tasks):
+            a, b = response
+            result[a] = b
+        return result["obsoletedBy"] + [pid] + result["obsoletes"]
+
+    async def idSiblings(self, an_id):
+        """
+        Get a objects in obsolescence relationship given identifier
+
+        Given ``A -> B -> pid -> C -> D``, returns ``[OBJ(A), OBJ(B), OBJ(pid), OBJ(C), OBJ(D)]``
+
+        Args:
+            an_id: PID, SID, or instance of OBJ, or OBJRevisions
+
+        Returns:
+            instance of OBJRevisions containing all revisions of an_id
+        """
+        obj = None
+        if isinstance(an_id, OBJ):
+            obj = an_id
+        elif isinstance(an_id, OBJRevisions):
+            obj = an_id.head
+        else:
+            obj = await self.pidOrSid(an_id)
+        a_pid = obj.pid
+        res = OBJRevisions()
+        # get the list of identifiers of objects in the chain
+        obsolescence = await self.getObsolescence(a_pid)
+        # reify the objects
+        res.objs = await self.pidsOrSids(obsolescence)
+        self._L.debug(str(obsolescence))
+        self._L.debug(str(res.obsolescence_chain))
+        # figure out the SID, if there is one
+        for obj in res.objs:
+            if obj.sid is not None:
+                res.sid = obj.sid
+                return res
+        return res
+
+
+class IDPackage(IDFamily):
+    def __init__(self, solr_url=None, session=None):
+        super().__init__(solr_url=solr_url, session=session)
+        self._L = logging.getLogger(self.__class__.__name__)
+
+    async def idPackages(self, an_id):
+        """
+        The packages that this PID appears in, if any.
+
+        Args:
+          an_id:
+
+        Returns: list of OBJ of resource_maps containing an_id
+        """
+        obj = None
+        if isinstance(an_id, OBJ):
+            obj = an_id
+        elif isinstance(an_id, OBJRevisions):
+            obj = an_id.head
+        else:
+            obj = await self.pidOrSid(an_id)
+        self._cache[obj.pid] = an_id
+        # an_id is not an ORE, find the ORE's that it is referenced by. Note that an ORE may reference
+        # content by PID or by SID, so need to check for both
+        params = dict(wt="json", fl="resourceMap", q=f"id:{quoteSolrTerm(obj.pid)}")
+        if an_id.sid is not None:
+            params["q"] += f" OR seriesId:{quoteSolrTerm(obj.sid)}"
+        response = await self.GET(params)
+        results = []
+        for doc in response["data"]["response"]["docs"]:
+            ore_id = self._get_doc_value(doc, "resourceMap")
+            self._L.debug("ORE_ID = %s", ore_id)
+            if not ore_id is None:
+                if isinstance(ore_id, list):
+                    results += ore_id
+                else:
+                    results.append(self._get_doc_value(doc, "resourceMap"))
+        self._L.debug(str(results))
+        packages = await self.pidsOrSids(results)
+        for package in packages:
+            self._cache[package.pid] = package
+        return packages
+
+    async def packageComponents(self, an_id):
+        """
+        Given an ORE pid, sid, OBJ, or OBJRevision, return a Package
+        Args:
+            an_id:
+
+        Returns:
+
+        """
+        obj = None
+        if isinstance(an_id, OBJ):
+            obj = an_id
+        elif isinstance(an_id, OBJRevisions):
+            obj = an_id.head
+        else:
+            obj = await self.pidOrSid(an_id)
+        package = Package(obj)
+        params = dict(
+            wt="json",
+            fl="id,seriesId,formatId,formatType,obsoletedBy,obsoletes,replicaMN,documents,isDocumentedBy",
+            q=f"resourceMap:{quoteSolrTerm(obj.pid)}",
+        )
+        if obj.sid is not None:
+            params["q"] += f"OR resourceMap:{quoteSolrTerm(obj.sid)}"
+        response = await self.GET(params)
+        for doc in response["data"]["response"]["docs"]:
+            new_obj = self._objFromDoc(doc)
+            self._cache[new_obj.pid] = new_obj
+            package.addObject(obj, new_obj, "aggregates")
+            for odoc in new_obj.documents:
+                package.addObject(new_obj, odoc, "documents")
+            for odoc in new_obj.is_documented_by:
+                package.addObject(new_obj, odoc, "is_documented_by")
+        return package
+
+    async def reifyPackage(self, package):
+        idx = 0
+        for an_obj in package._ids:
+            pass
+        pass
+
+    async def idDocuments(self, an_id):
+        pass
+
+    def idDocumentedBy(self, an_id):
+        pass
+
+    def idPackage(self, an_id):
+        res = {
+            "ore_id": None,  # identifier of the ORE document
+            "ids": [],  # list of identifiers that appear in the package
+            "relations": [],  # list of (subject, predicate, object)
+        }
+
+
+def main():
+    """
+
+  :return:
+  """
+
+    async def _work(loop, an_id):
+        async with ClientSession(loop=loop) as session:
+            pid_fam = IDPackage(session=session)
+
+            logging.info("Retrieving object info...")
+            obj = await pid_fam.pidOrSid(an_id)
+            print(obj)
+            print("====")
+
+            logging.info("Retrieving object revisions...")
+            obj_rev = await pid_fam.idSiblings(obj)
+            print(obj_rev)
+            print(obj_rev.obsolescence_chain)
+            print("====")
+
+            # logging.info("Retrieving packages with object...")
+            # returns a list of OBJRevisions
+            # packages = await pid_fam.idPackages(obj_rev)
+            # for package in packages:
+            #    print(package)
+            # print("====")
+
+            logging.info("Package components...")
+            pack_id = an_id
+            package = await pid_fam.packageComponents(pack_id)
+            print(str(package))
+
+    defaults = {"format": ["text", "json"]}
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("an_id", help="Identifier to evaluate")
+    args, config = d1_admin_tools.defaultScriptMain(parser, defaults)
+    logger = logging.getLogger("main")
+    if args.format.lower() == "xml":
+        print("XML output is not supported by this operation, use 'json' instead.")
+        return 1
+    # retrieve the list of nodes in this environment
+    env_nodes = config.envNodes(args.environment)
+
+    loop = asyncio.get_event_loop()
+    if logging.getLogger().level == logging.DEBUG:
+        loop.set_debug(True)
+    loop.run_until_complete(_work(loop, args.an_id))
+    loop.close()
+
+    # res = pid_fam.idSiblings(args.an_id)
+    # pprint(res)
+
+    return 0
+
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.DEBUG)
+    sys.exit(main())

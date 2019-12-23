@@ -53,7 +53,7 @@ def testNodePing(node_wrap):
   client = node_wrap.getClient(allow_redirects=False, timeout=5)
   tstart = time.time()
   try:
-    response = client.pingResponse()
+    response = client.pingResponse(verify="/Users/vieglais/anaconda3/ssl/cacert.pem")
   except exceptions.SSLError as ex:
     logging.exception(ex)
     try:

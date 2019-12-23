@@ -8,8 +8,8 @@ import logging
 import time
 from getpass import getpass
 from io import StringIO
-from fabric.api import sudo, get, put, run
-from fabric.context_managers import env
+#from fabric.api import sudo, get, put, run
+#from fabric.context_managers import env
 
 
 def expandNodeID(nodeId):
@@ -200,5 +200,3 @@ def resetNodeLogAggregationDate(node_id, ldap_pass=None, harvest_timestamp="1900
 
 #========================
 #== CRUD on MN custom properties
-
-

@@ -16,6 +16,10 @@ Later versions will support setting DNS entries.
 On OS-X expects keychain to have two entries available:
 d1.route53.accesskeyid = the access key aidentifier
 d1.route53.accesskey = the access key (secret)
+
+Example, CSV of IP,DNS for all A records:
+  
+  d1dns -t A -f json | jq -r '. | map([.values, .name] | join(",")) | join("\n")'
 """
 
 KEYTOOL_ROUTE53_KEYID = "d1.route53.accesskeyid"
@@ -37,7 +41,7 @@ def getZoneByName(conn, zone_name="dataone.org."):
     return None
 
 
-def getZoneEntries(record_type=None, zone_name="dataone.org"):
+def getZoneEntries(record_type=None, zone_name="dataone.org", data_only=False, name_only=False):
     result = []
     conn = route53.connect(
         keyring.get_password("system", KEYTOOL_ROUTE53_KEYID),
@@ -54,33 +58,58 @@ def getZoneEntries(record_type=None, zone_name="dataone.org"):
         if not record_type is None:
             match = (record_set.rrset_type == record_type)
         if match:
-            entry = {
-                "kind": record_set.rrset_type,
-                "values": None,
-                "name": removeNameLastDot(record_set.name),
-            }
             if len(record_set.records) == 1:
-                entry["values"] = record_set.records[0]
+                data  = record_set.records[0]
             else:
-                entry["values"] = record_set.records
-            result.append(entry)
+                data = record_set.records
+
+            if data_only:
+                result.append(data)
+            elif name_only:
+                result.append(removeNameLastDot(record_set.name))
+            else:
+                entry = {
+                    "kind": record_set.rrset_type,
+                    "values": data,
+                    "name": removeNameLastDot(record_set.name),
+                }
+                result.append(entry)
     return result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__,
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("-t", '--record_type',
+                        default="A",
+                        help="Record type to return (default = 'A'")
+    parser.add_argument("-i", '--ip_only',
+                        action="store_true",
+                        help="Show only the record data (ip addresses for A records)")
+    parser.add_argument("-N", '--name_only',
+                        action="store_true",
+                        help="Show only the record name")
+
+
     args, config = d1_admin_tools.defaultScriptMain(parser)
     logger = logging.getLogger('main')
     format = args.format.lower()
-    if format not in ['text', 'json', 'yaml', 'xml', 'csv', 'html', ]:
+    if format not in ['text', 'json', ]:
         format = 'text'
-    result = getZoneEntries(record_type=None)
+    if args.ip_only and args.name_only:
+        logging.error("Only one of ip_only or name_only can be specified.")
+        return 1
+    result = getZoneEntries(record_type=args.record_type, data_only=args.ip_only, name_only=args.name_only)
     if format == "json":
-        json.dumps(result, indent=2)
+        print(json.dumps(result, indent=2))
     else:
         for row in result:
-            print(f"{row['kind']} {row['name']} {row['values']}")
+            if args.ip_only:
+                print(f"{row['values']}")
+            elif args.name_only:
+                print(f"{row}")
+            else:
+                print(f"{row['kind']} {row['name']} {row['values']}")
     return 0
 
 if __name__ == "__main__":
