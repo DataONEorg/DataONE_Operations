@@ -24,12 +24,12 @@ import http.client
 
 def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.org/"):
     """
-  e.g.: https://redmine.dataone.org/issues/7969
-  :param node_id:
-  :param api_key:
-  :param base_url:
-  :return:
-  """
+    e.g.: https://redmine.dataone.org/issues/7969
+    :param node_id:
+    :param api_key:
+    :param base_url:
+    :return:
+    """
     data = {"key": api_key, "cf_31": node_id}
     response = requests.get(base_url + "issues.json", params=data)
     issue = response.json()
@@ -43,55 +43,59 @@ def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.o
 
 def testNodePing(node_wrap):
     """
-  Returns (http status, milliseconds) for /monitor/ping
-  :param node_wrap:
-  :return:
-  '''
-  logging.info("Pinging %s", node_wrap.getID())
-  client = node_wrap.getClient(allow_redirects=False, timeout=5)
-  tstart = time.time()
-  try:
-    response = client.pingResponse(verify="/Users/vieglais/anaconda3/ssl/cacert.pem")
-  except exceptions.SSLError as ex:
-    logging.exception(ex)
+    Returns (http status, milliseconds) for /monitor/ping
+    :param node_wrap:
+    :return:
+    """
+    logging.info("Pinging %s", node_wrap.getID())
+    client = node_wrap.getClient(allow_redirects=False, timeout=5)
+    tstart = time.time()
     try:
-      return {'status':'-1',
-              'ping':0,
-              'status_message':str(ex.message),
-              }
-    except AttributeError as e2:
-      ex.message = str(ex)
-      return {'status':'-1',
-              'ping':0,
-              'status_message':str(ex.message),
-              }
-
-  except exceptions.ConnectionError as ex:
-    logging.exception(ex)
-    try:
-        response = client.pingResponse()
+        response = client.pingResponse(
+            verify="/Users/vieglais/anaconda3/ssl/cacert.pem"
+        )
     except exceptions.SSLError as ex:
         logging.exception(ex)
         try:
-            return {"status": "-1", "ping": 0, "status_message": str(ex.message)}
+            return {
+                "status": "-1",
+                "ping": 0,
+                "status_message": str(ex.message),
+            }
         except AttributeError as e2:
             ex.message = str(ex)
-            return {"status": "-1", "ping": 0, "status_message": str(ex.message)}
+            return {
+                "status": "-1",
+                "ping": 0,
+                "status_message": str(ex.message),
+            }
 
     except exceptions.ConnectionError as ex:
         logging.exception(ex)
         try:
-            return {"status": "-2", "ping": 0, "status_message": str(ex.message)}
-        except AttributeError as e2:
-            ex.message = str(ex)
-            return {"status": "-2", "ping": 0, "status_message": str(ex.message)}
+            response = client.pingResponse()
+        except exceptions.SSLError as ex:
+            logging.exception(ex)
+            try:
+                return {"status": "-1", "ping": 0, "status_message": str(ex.message)}
+            except AttributeError as e2:
+                ex.message = str(ex)
+                return {"status": "-1", "ping": 0, "status_message": str(ex.message)}
 
-    tend = time.time()
-    return {
-        "status": response.status_code,
-        "ping": tend - tstart,
-        "status_message": http.client.responses[response.status_code],
-    }
+        except exceptions.ConnectionError as ex:
+            logging.exception(ex)
+            try:
+                return {"status": "-2", "ping": 0, "status_message": str(ex.message)}
+            except AttributeError as e2:
+                ex.message = str(ex)
+                return {"status": "-2", "ping": 0, "status_message": str(ex.message)}
+
+        tend = time.time()
+        return {
+            "status": response.status_code,
+            "ping": tend - tstart,
+            "status_message": http.client.responses[response.status_code],
+        }
 
 
 def getIndexObjectCount(nodes, node_id):
@@ -135,9 +139,9 @@ def doListNodes(
     ignore_state=False,
 ):
     """
-  returns  dict with {xml}, items:[  ]
-  replicate="false" synchronize="false" type="cn" state="up"
-  """
+    returns  dict with {xml}, items:[  ]
+    replicate="false" synchronize="false" type="cn" state="up"
+    """
     if do_listobjects:
         do_ping = True
     time_stamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")

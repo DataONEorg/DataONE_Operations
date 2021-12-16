@@ -18,7 +18,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.14.0',
+    version='1.0',
 
     description='Utilities for administrative operations in DataONE',
     long_description=long_description,
@@ -93,14 +93,14 @@ setup(
     # In this case, 'data_file' will be installed into '<sys.prefix>/my_data'
     data_files=[],
 
-    scripts=['scripts/d1hosts', 
+    scripts=['scripts/d1hosts',
              'scripts/d1resolve',
              'scripts/d1sysmeta',
              'scripts/d1nodes',
              'scripts/d1facets',
              'scripts/d1getpids',
              'scripts/d1fields',
-             'scripts/urlx',
+#             'scripts/urlx',
              'scripts/d1listobjects',
              'scripts/d1delete',
              'scripts/d1archive',
@@ -116,6 +116,7 @@ setup(
              'scripts/d1ppids',
 #            'scripts/httpcli',
              'scripts/d1dns',
+             'scripts/d1indexbacklog',
              ],
 
     # To provide executable scripts, use entry points in preference to the
