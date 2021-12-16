@@ -12,8 +12,8 @@ from pytz import timezone
 
 #dateparser has some code that needs to be updated
 import warnings
-import ruamel.yaml
-warnings.simplefilter('ignore', ruamel.yaml.error.UnsafeLoaderWarning)
+#import ruamel.yaml
+#warnings.simplefilter('ignore', ruamel.yaml.error.UnsafeLoaderWarning)
 import dateparser
 
 

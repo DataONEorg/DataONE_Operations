@@ -4,12 +4,25 @@ version = "0.1.0"
 description = "Admin tools for DataONE"
 authors = ["datadavev <605409+datadavev@users.noreply.github.com>"]
 license = "MIT"
+packages = [
+    { include = "d1_admin_tools" }
+]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+click = "^8.0.3"
+python-ldap = "^3.4.0"
+requests = "^2.26.0"
+dateparser = "^1.1.0"
+pytz = "^2021.3"
+"dataone.libclient" = "^3.5.0"
+PyYAML = "^6.0"
 
 [tool.poetry.dev-dependencies]
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.scripts]
+d1nodeprops = 'scripts.d1nodeprops:main'
