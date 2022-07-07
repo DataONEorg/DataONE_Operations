@@ -100,7 +100,6 @@ setup(
              'scripts/d1facets',
              'scripts/d1getpids',
              'scripts/d1fields',
-             'scripts/urlx',
              'scripts/d1listobjects',
              'scripts/d1delete',
              'scripts/d1archive',

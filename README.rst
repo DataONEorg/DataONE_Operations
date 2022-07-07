@@ -60,6 +60,17 @@ provide a setup that can be tweaked::
   pip install -U -e d1_python/d1_libclient_python/src
   pip install -U -e DataONE_Operations
 
+**Locally editable installation in a virtualenv with virtualenvwrapper**
+
+On Ubuntu 18.04, try::
+
+  mkvirtualenv --python=/usr/bin/python3 d1_python
+  workon d1_python
+  git clone "https://github.com/DataONEorg/DataONE_Operations.git" 
+  sudo apt install python3-dev libldap2-dev libsasl2-dev
+  pip install dataone.common dataone.libclient
+  pip install -U -e DataONE_Operations
+
 .. _Anaconda: https://www.continuum.io/downloads
 
 Initialization
@@ -88,7 +99,6 @@ Output in text, json, xml is generally supported.
 * ``d1facets`` Retrieves values for a solr field in the specified solr core.
 * ``d1getpids`` Retrieves identifiers from metacat postgres and checks file system consistency.
 * ``d1listobjects`` Run listObjects against a node with various filter options.
-* ``urlx`` URL encode / decode stdin or string parameter.
 * ``d1delete`` Issues a call to CNCore.delete() for a single PID.
 * ``d1archive`` Issues a call to CNCore.archive() for a single PID.
 * ``d1indexqstat`` Retrieves counts from the index processor task queue.
