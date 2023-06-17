@@ -146,7 +146,6 @@ class D1Configuration( object ):
     #Initialize the various environment settings
     self.config['environments'] = {'production': {'primary': {'host':'cn.dataone.org', 'base':'/cn', 'id': 'urn:node:CN', },
                                                   'cns': [{'host':'cn-ucsb-1.dataone.org','base':'/cn',},
-                                                          {'host':'cn-unm-1.dataone.org','base':'/cn',},
                                                           {'host':'cn-orc-1.dataone.org','base':'/cn',},
                                                           ],
                                                   'login':{'cert':'https://cilogon.org/?skin=dataone',
@@ -157,7 +156,6 @@ class D1Configuration( object ):
                                    'stage': {'primary': {'host':'cn-stage.test.dataone.org', 'base':'/cn', 'id':'urn:node:cnStage', },
                                              'cns': [{'host':'cn-stage-ucsb-1.test.dataone.org', 'base':'/cn',  },
                                                      {'host':'cn-stage-orc-1.test.dataone.org', 'base':'/cn', },
-                                                     {'host':'cn-stage-unm-1.test.dataone.org', 'base':'/cn',},
                                                      ],
                                              'login': {'cert': 'https://cilogon.org/?skin=dataonestage',
                                                        'token': ''},
@@ -167,7 +165,6 @@ class D1Configuration( object ):
                                    'sandbox': {'primary': {'host':'cn-sandbox.test.dataone.org', 'base':'/cn', 'id':'urn:node:cnSandbox', },
                                                'cns': [{'host':'cn-sandbox-ucsb-1.test.dataone.org', 'base':'/cn', },
                                                        {'host':'cn-sandbox-orc-1.test.dataone.org', 'base':'/cn', },
-                                                       {'host':'cn-sandbox-unm-1.test.dataone.org', 'base':'/cn', },
                                                        ],
                                                'login': {'cert': 'https://cilogon.org/?skin=dataonesandbox',
                                                          'token': ''},
