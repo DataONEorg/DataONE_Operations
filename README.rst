@@ -29,49 +29,9 @@ Installs a locally editable version of the tools:
 
 2. ``cd`` to the project
 
-3. ``pip install -U -e .``
+3. Create a virtual environment. If you have `direnv` installed, then the python virtual environment `venv` is created for you. Otherwise, `python -m venv venv`.
 
-This assumes that you have the DataONE python common and libclient libraries installed. If
-not then install from PyPi (``pip install dataone.libclient``) or for a locally editable install:
-
-1. Checkout d1_python_
-
-2. ``pip install -U -e d1_python/lib_common/src``
-
-3. ``pip install -U -e d1_python/lib_client/src``
-
-.. _d1_python: https://github.com/DataONEorg/d1_python
-
-**Locally editable installation in a virtual environment with Conda**
-
-If you have Anaconda_ installed (highly recommended), then the following installation steps
-provide a setup that can be tweaked::
-
-  conda create -n d1tools-dev python=2.7
-  source activate d1tools-dev
-  cd d1tools-dev
-  pip install -U setuptools
-  pip install -U humanize
-  export CC=/usr/bin/clang
-  export CXX=/usr/bin/clang++
-  git clone "https://github.com/DataONEorg/d1_python.git"
-  git clone "https://github.com/DataONEorg/DataONE_Operations.git"
-  pip install -U -e d1_python/d1_common_python/src
-  pip install -U -e d1_python/d1_libclient_python/src
-  pip install -U -e DataONE_Operations
-
-**Locally editable installation in a virtualenv with virtualenvwrapper**
-
-On Ubuntu 18.04, try::
-
-  mkvirtualenv --python=/usr/bin/python3 d1_python
-  workon d1_python
-  git clone "https://github.com/DataONEorg/DataONE_Operations.git" 
-  sudo apt install python3-dev libldap2-dev libsasl2-dev
-  pip install dataone.common dataone.libclient
-  pip install -U -e DataONE_Operations
-
-.. _Anaconda: https://www.continuum.io/downloads
+4.. ``pip install -U -e .``
 
 Initialization
 --------------
