@@ -21,15 +21,17 @@ import requests
 from requests import exceptions
 import http.client
 
+PING_TIMEOUT = 3
+GETOBJECT_TIMEOUT = 10
 
 def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.org/"):
     """
-  e.g.: https://redmine.dataone.org/issues/7969
-  :param node_id:
-  :param api_key:
-  :param base_url:
-  :return:
-  """
+    e.g.: https://redmine.dataone.org/issues/7969
+    :param node_id:
+    :param api_key:
+    :param base_url:
+    :return:
+    """
     data = {"key": api_key, "cf_31": node_id}
     response = requests.get(base_url + "issues.json", params=data)
     issue = response.json()
@@ -41,57 +43,48 @@ def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.o
     return base_url + "issues/" + str(issue_id)
 
 
-def testNodePing(node_wrap):
+def testNodePing(node_wrap, timeout=PING_TIMEOUT):
     """
-  Returns (http status, milliseconds) for /monitor/ping
-  :param node_wrap:
-  :return:
-  '''
-  logging.info("Pinging %s", node_wrap.getID())
-  client = node_wrap.getClient(allow_redirects=False, timeout=5)
-  tstart = time.time()
-  try:
-    response = client.pingResponse(verify="/Users/vieglais/anaconda3/ssl/cacert.pem")
-  except exceptions.SSLError as ex:
-    logging.exception(ex)
+    Returns (http status, milliseconds) for /monitor/ping
+    :param node_wrap:
+    :return:
+    """
     try:
-      return {'status':'-1',
-              'ping':0,
-              'status_message':str(ex.message),
-              }
-    except AttributeError as e2:
-      ex.message = str(ex)
-      return {'status':'-1',
-              'ping':0,
-              'status_message':str(ex.message),
-              }
-
-  except exceptions.ConnectionError as ex:
-    logging.exception(ex)
+        timeout = int(timeout)
+    except Exception as e:
+        timeout = PING_TIMEOUT
+    logging.info("Pinging %s", node_wrap.getID())
+    client = node_wrap.getClient(allow_redirects=False, timeout=timeout)
+    tstart = time.time()
+    message = {
+        "status":"-9999",
+        "ping": 0,
+        "status_message": ""
+    }
     try:
         response = client.pingResponse()
+        message["status"] = response.status_code
+        message["status_message"] = http.client.responses[response.status_code]
     except exceptions.SSLError as ex:
-        logging.exception(ex)
+        logging.error(ex)
         try:
-            return {"status": "-1", "ping": 0, "status_message": str(ex.message)}
+            message["status"] = -1
+            message["status_message"] = str(ex.message)
         except AttributeError as e2:
-            ex.message = str(ex)
-            return {"status": "-1", "ping": 0, "status_message": str(ex.message)}
-
+            message["status"] = -1
+            message["status_message"] = str(ex)
     except exceptions.ConnectionError as ex:
-        logging.exception(ex)
+        logging.error(ex)
         try:
-            return {"status": "-2", "ping": 0, "status_message": str(ex.message)}
+            message["status"] = -2
+            message["status_message"] = str(ex.message)
         except AttributeError as e2:
-            ex.message = str(ex)
-            return {"status": "-2", "ping": 0, "status_message": str(ex.message)}
-
-    tend = time.time()
-    return {
-        "status": response.status_code,
-        "ping": tend - tstart,
-        "status_message": http.client.responses[response.status_code],
-    }
+            message["status"] = -2
+            message["status_message"] = str(ex)
+    finally:
+        tend = time.time()
+        message["ping"] = tend - tstart
+        return message
 
 
 def getIndexObjectCount(nodes, node_id):
@@ -99,11 +92,15 @@ def getIndexObjectCount(nodes, node_id):
     return index_count
 
 
-def getObjectCount(nodes, node_id, mn_ping_status):
+def getObjectCount(nodes, node_id, mn_ping_status, timeout=GETOBJECT_TIMEOUT):
+    try:
+        timeout = int(timeout)
+    except Exception as e:
+        timeout = GETOBJECT_TIMEOUT
     logging.info("List objects for node: %s", node_id)
     res = {"cn_object_count": 0, "mn_object_count": 0, "index_count": 0}
     # get CN count
-    cn_client = nodes.getClient()
+    cn_client = nodes.getClient(timeout=timeout)
     try:
         kwparams = {"count": 0, "nodeId": node_id}
         cn_lo = cn_client.listObjects(**kwparams)
@@ -133,11 +130,13 @@ def doListNodes(
     do_listobjects=False,
     redmine_key=None,
     ignore_state=False,
+    ping_timeout=PING_TIMEOUT,
+    getobject_timeout=GETOBJECT_TIMEOUT
 ):
     """
-  returns  dict with {xml}, items:[  ]
-  replicate="false" synchronize="false" type="cn" state="up"
-  """
+    returns  dict with {xml}, items:[  ]
+    replicate="false" synchronize="false" type="cn" state="up"
+    """
     if do_listobjects:
         do_ping = True
     time_stamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
@@ -171,6 +170,7 @@ def doListNodes(
             "schedule_text": "",
             "version": "v1",
             "status": "",
+            "status_message": "",
             "ping": "",
             "mn_object_count": "",
             "cn_object_count": "",
@@ -202,38 +202,41 @@ def doListNodes(
             row["version"] = "v2"
         if do_ping:
             if ignore_state or row["state"].lower() == "up":
-                res = testNodePing(node_wrap)
+                res = testNodePing(node_wrap, timeout=ping_timeout)
                 row["ping"] = "{:.2f}".format(res["ping"])
                 row["status"] = str(res["status"])
                 row["status_message"] = ""
                 if res["status"] != 200:
                     row["status_message"] = res["status_message"]
         if do_listobjects:
-            res = getObjectCount(nodes, row["nodeId"], row["status"])
+            res = getObjectCount(nodes, row["nodeId"], row["status"], timeout=getobject_timeout)
             row["mn_object_count"] = str(res["mn_object_count"])
             row["cn_object_count"] = str(res["cn_object_count"])
         if node.type.lower() == "mn":
-            row["lastHarvested"] = node.synchronization.lastHarvested.strftime(
-                "%Y-%m-%dT%H:%M:%S%Z"
-            )
-            row["lastHarvest"] = humanize.naturaltime(
-                datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
-                - node.synchronization.lastHarvested
-            )
-            # schedule hour="*" mday="*" min="0/3" mon="*" sec="10" wday="?" year="*"/>
-            sched = node.synchronization.schedule
-            row["schedule"] = {
-                "hour": sched.hour,
-                "mday": sched.mday,
-                "min": sched.min,
-                "mon": sched.mon,
-                "sec": sched.sec,
-                "wday": sched.wday,
-                "year": sched.year,
-            }
-            row["schedule_text"] = " ".join(
-                [i[1] for i in list(row["schedule"].items())]
-            )
+            if node.synchronization is not None:
+                row["lastHarvested"] = node.synchronization.lastHarvested.strftime(
+                    "%Y-%m-%dT%H:%M:%S%Z"
+                )
+                row["lastHarvest"] = humanize.naturaltime(
+                    datetime.datetime.utcnow().replace(tzinfo=pytz.utc)
+                    - node.synchronization.lastHarvested
+                )
+                # schedule hour="*" mday="*" min="0/3" mon="*" sec="10" wday="?" year="*"/>
+                sched = node.synchronization.schedule
+                row["schedule"] = {
+                    "hour": sched.hour,
+                    "mday": sched.mday,
+                    "min": sched.min,
+                    "mon": sched.mon,
+                    "sec": sched.sec,
+                    "wday": sched.wday,
+                    "year": sched.year,
+                }
+                row["schedule_text"] = " ".join(
+                    [i[1] for i in list(row["schedule"].items())]
+                )
+            else:
+                logger.warning("No synchronization info for node: %s", node.identifier.value())
         for s in node.subject:
             row["subject"].append(s.value())
         for s in node.contactSubject:
@@ -353,6 +356,11 @@ def main():
         action="store_true",
         help="Generate a ping report in CSV. Overrides other flags.",
     )
+    parser.add_argument(
+        "--timeout",
+        default=3,
+        help="Ping timeout in seconds"
+    )
     args, config = d1_admin_tools.defaultScriptMain(parser)
     logger = logging.getLogger("main")
 
@@ -370,6 +378,7 @@ def main():
         do_ping=args.ping,
         do_listobjects=args.countobjects,
         redmine_key=args.redmine_key,
+        ping_timeout=args.timeout,
     )
 
     if args.update_yaml:
@@ -434,20 +443,20 @@ def main():
         print((dom.toprettyxml(indent=" " * 2)))
         return 0
     # text or anything else
-    if not summary is None:
+    if summary is not None:
         for row in summary:
             print(row)
         return 0
     if args.ping_report:
         fields = ["TStamp", "nodeId", "state", "status", "ping", "status_message"]
     else:
-        fields = ["nodeId", "baseUrl", "version", "name"]
+        fields = ["nodeId", "baseUrl", "version", "state", "name"]
         if args.schedule:
             fields = ["nodeId", "baseUrl", "version", "lastHarvest", "schedule_text"]
         if args.redmine_key is not None:
             fields += ["issue_url"]
         if args.ping:
-            fields += ["state", "status", "ping", "status_message"]
+            fields += ["status", "ping", "status_message"]
             if args.countobjects:
                 fields += ["cn_object_count", "mn_object_count"]
     if format == "csv":
