@@ -49,8 +49,6 @@ setup(
 
         # Specify the Python versions you support here. In particular, ensure
         # that you indicate whether you support Python 2, Python 3 or both.
-        'Programming Language :: Python :: 2',
-        'Programming Language :: Python :: 2.7',
         'Programming Language :: Python :: 3',
     ],
 
@@ -69,9 +67,19 @@ setup(
     # your project is installed. For an analysis of "install_requires" vs pip's
     # requirements files see:
     # https://packaging.python.org/en/latest/requirements.html
-    install_requires=['requests', 'fabric3', 'xmljson', 'dateparser',
-                      'humanize', 'pytz', 'tzlocal', 'keyring',
-                      'python-ldap', 'dataone.common'
+    install_requires=['requests',
+                      'fabric3',
+                      'xmljson',
+                      'dateparser',
+                      'humanize',
+                      'pytz',
+                      'tzlocal',
+                      'keyring',
+                      'python-ldap',
+                      'dataone.common',
+                      'dataone.libclient',
+                      'ruamel.yaml',
+                      'pyyaml'
                       ],
 
     # List additional groups of dependencies here (e.g. development
@@ -112,8 +120,9 @@ setup(
              'scripts/d1verifytoken',
              'scripts/d1logintoken',
              'scripts/d1auditreplicas',
+             'scripts/d1pid',
              'scripts/d1ppids',
-#            'scripts/httpcli',
+             'scripts/d1pidinfo',
              'scripts/d1dns',
              ],
 
