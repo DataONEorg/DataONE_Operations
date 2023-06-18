@@ -144,6 +144,17 @@ def readNodeProperty(con, node_id, key):
     result['properties'].append(row)
   return result
 
+def getNodeProperties(con, node_id):
+  logger = logging.getLogger("main")
+  dn = "cn={0},dc=dataone,dc=org".format(node_id)
+  q = "(|(objectClass=d1Node)(objectClass=d1NodeProperty))"
+  try:
+    res = con.search_s(dn, ldap.SCOPE_SUBTREE, q)
+    return res
+  except ldap.NO_SUCH_OBJECT as e:
+    logger.error(e)
+    return []
+
 
 def updateNodeProperty(con, node_id, key, value, old_value=None):
   '''Update existing node property  
@@ -152,8 +163,8 @@ def updateNodeProperty(con, node_id, key, value, old_value=None):
   logging.debug("VALUE=%s", value)
   logging.debug("OLD VALUE=%s", old_value)
   if key not in ALLOWED_PROPERTIES:
-    raise KeyError("key must be one of {0}".format( \
-       ",".join(ALLOWED_PROPERTIES)))
+    raise KeyError("key must be one of {0}".format(
+      ",".join(ALLOWED_PROPERTIES)))
   property_id = key
   node_id = expandNodeID(node_id)
   if old_value is None:
@@ -211,6 +222,9 @@ def listNodes(con, attrs=None):
         row.append(_readEntryValue(entry, attr)) 
       result.append(row)
   return result
+
+
+
 
 
 def listAllNodeProperties(con):
