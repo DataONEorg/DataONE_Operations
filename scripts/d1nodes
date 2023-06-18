@@ -354,7 +354,7 @@ def main():
     parser.add_argument(
         "--ping_report",
         action="store_true",
-        help="Generate a ping report in CSV. Overrides other flags.",
+        help="Generate a ping report in CSV. Overrides other output flags.",
     )
     parser.add_argument(
         "--timeout",
