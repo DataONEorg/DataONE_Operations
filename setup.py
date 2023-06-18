@@ -79,7 +79,8 @@ setup(
                       'dataone.common',
                       'dataone.libclient',
                       'ruamel.yaml',
-                      'pyyaml'
+                      'pyyaml',
+                      'shortuuid',
                       ],
 
     # List additional groups of dependencies here (e.g. development
