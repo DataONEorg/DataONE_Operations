@@ -46,15 +46,17 @@ nodes:
       CN_node_name: "Some node name"
   - nodeId: "urn:node:other"
 """
-import sys
-import logging
 import argparse
+import io
+import logging
+import os.path
+import sys
+import json
+import ldif
+import yaml
 import d1_admin_tools
 from d1_admin_tools import d1_node_properties as d1np
-import json
-import yaml
 from pprint import pprint
-import os.path
 
 
 def printNodeProperties(properties, format="text"):
@@ -166,6 +168,7 @@ def main():
             conn,
             attrs=[
                 "d1NodeId",
+                "d1NodeBaseURL",
                 "d1NodeApproved",
                 "d1NodeState",
                 "d1NodeSynchronize",
@@ -173,17 +176,28 @@ def main():
             ],
         )
         nwidth = 0
+        uwidth = 0
         for row in res:
             if len(row[0]) > nwidth:
                 nwidth = len(row[0]) + 1
-        fmtstr = "{0:" + str(nwidth) + "} {1:6} {2:5} {3:6} {4:6}"
-        row = ["NodeId", "Approv", "State", "Sync", "Repl"]
+            if len(row[1]) > uwidth:
+                uwidth = len(row[1]) + 1
+        fmtstr = "{0:" + str(nwidth) + "} {1:" + str(uwidth) + "} {2:5} {3:5} {4:6} {5:6}"
+        row = ["NodeId", "URL", "Approv", "State", "Sync", "Repl"]
         print((fmtstr.format(*row)))
+        warnings = []
+        urls = []
         for row in res:
             trow = []
+            if row[1] in urls:
+                warnings.append(f"Duplicate Base URL: {row[1].decode('utf-8')}")
+            urls.append(row[1])
             for entry in row:
                 trow.append(entry.decode("utf-8"))
             print((fmtstr.format(*trow)))
+        print()
+        for warning in warnings:
+            logger.warning(warning)
         return 0
     if args.nodeid is None and args.yaml is None:
         print("nodeid or yaml file requried")
@@ -207,8 +221,17 @@ def main():
                 return 1
             d1np.createOrUpdateNodeProperty(conn, args.nodeid, args.key, args.value)
             the_key = "*"
-    results = d1np.readNodeProperty(conn, args.nodeid, the_key)
-    printNodeProperties(results, args.format)
+
+    output = io.StringIO()
+    ldif_writer = ldif.LDIFWriter(output)
+    try:
+        for dn, entry in d1np.getNodeProperties(conn, args.nodeid):
+            ldif_writer.unparse(dn, entry)
+    except:
+        pass
+    print(output.getvalue())
+    #results = d1np.readNodeProperty(conn, args.nodeid, the_key)
+    #printNodeProperties(results, args.format)
     conn.unbind_s()
 
 
