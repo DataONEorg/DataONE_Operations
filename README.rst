@@ -49,13 +49,20 @@ The Scripts
 -----------
 
 All scripts are meant to be run from a BASH command line (untested on windows), send output to stdout.
-Output in text, json, xml is generally supported.
+Output in text, json, and sometimes xml is supported.
 
+* ``d1nodes`` Show the list of nodes in an environment.
+* ``d1nodeprops`` Get and set the custom properties on nodes.
+* ``d1fields`` Retrieves a list of fields from the specified solr core.
 * ``d1hosts`` List DataONE CNs in an environment.
+* ``d1logintoken`` Drive a webbrowser session to login to ORCID and receive a DataONE token. Note: It is necessary to
+  `pip install selenium` in the working python virtual environment before this script can be used.
+* ``d1verifytoken`` Given a token, decode and verify the signature
+
+May be out of date:
+
 * ``d1resolve`` Resolve an identifier.
 * ``d1sysmeta`` Retrieve system metadata given an identifier.
-* ``d1nodes`` Show the list of nodes in an environment.
-* ``d1fields`` Retrieves a list of fields from the specified solr core.
 * ``d1facets`` Retrieves values for a solr field in the specified solr core.
 * ``d1getpids`` Retrieves identifiers from metacat postgres and checks file system consistency.
 * ``d1listobjects`` Run listObjects against a node with various filter options.
@@ -63,8 +70,6 @@ Output in text, json, xml is generally supported.
 * ``d1archive`` Issues a call to CNCore.archive() for a single PID.
 * ``d1indexqstat`` Retrieves counts from the index processor task queue.
 * ``d1mnadmin`` Reset synchronization time, update MN node document
-* ``d1logintoken`` Drive a webbrowser session to login to ORCID and receive a DataONE token
-* ``d1verifytoken`` Given a token, decode and verify the signature
 
 
 Code style
