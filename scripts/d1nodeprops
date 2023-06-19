@@ -53,6 +53,9 @@ import os.path
 import sys
 import json
 import ldif
+import rich
+import rich.table
+import rich.console
 import yaml
 import d1_admin_tools
 from d1_admin_tools import d1_node_properties as d1np
@@ -101,6 +104,14 @@ def processUpdateFromYaml(conn, yaml_file, dry_run=True):
 
 # === main ===
 
+def ldap_entry_to_strings(entry):
+    res = {}
+    for k, v in entry.items():
+        if isinstance(v, list):
+            res[k] = [vv.decode("utf-8") for vv in v]
+        else:
+            res[k] = str(v)
+    return res
 
 def main():
     defaults = {"format": ["text", "json"]}
@@ -163,6 +174,9 @@ def main():
         return 1
     the_key = args.key
     conn = d1np.getLDAPConnection(host=args.host, password=args.password)
+    style_bold = rich.style.Style(color=None, bgcolor=None, bold=True)
+    style_default = rich.style.Style(color=None, bgcolor=None, bold=False)
+    style_error = rich.style.Style(color="bright_red", bgcolor=None, bold=False)
     if operation == "list":
         res = d1np.listNodes(
             conn,
@@ -175,27 +189,26 @@ def main():
                 "d1NodeReplicate",
             ],
         )
-        nwidth = 0
-        uwidth = 0
-        for row in res:
-            if len(row[0]) > nwidth:
-                nwidth = len(row[0]) + 1
-            if len(row[1]) > uwidth:
-                uwidth = len(row[1]) + 1
-        fmtstr = "{0:" + str(nwidth) + "} {1:" + str(uwidth) + "} {2:5} {3:5} {4:6} {5:6}"
+        table = rich.table.Table()
         row = ["NodeId", "URL", "Approv", "State", "Sync", "Repl"]
-        print((fmtstr.format(*row)))
+        for col in row:
+            table.add_column(col)
         warnings = []
         urls = []
         for row in res:
             trow = []
-            if row[1] in urls:
-                warnings.append(f"Duplicate Base URL: {row[1].decode('utf-8')}")
-            urls.append(row[1])
             for entry in row:
                 trow.append(entry.decode("utf-8"))
-            print((fmtstr.format(*trow)))
-        print()
+            style = style_default
+            if trow[3] == "up":
+                style = style_bold
+            if trow[1] in urls:
+                warnings.append(f"Duplicate Base URL: {trow[1]}")
+                style = style_error
+            table.add_row(*trow, style=style)
+            urls.append(trow[1])
+        console = rich.console.Console()
+        console.print(table)
         for warning in warnings:
             logger.warning(warning)
         return 0
@@ -222,14 +235,53 @@ def main():
             d1np.createOrUpdateNodeProperty(conn, args.nodeid, args.key, args.value)
             the_key = "*"
 
-    output = io.StringIO()
-    ldif_writer = ldif.LDIFWriter(output)
-    try:
-        for dn, entry in d1np.getNodeProperties(conn, args.nodeid):
-            ldif_writer.unparse(dn, entry)
-    except:
-        pass
-    print(output.getvalue())
+    #output = io.StringIO()
+    #ldif_writer = ldif.LDIFWriter(output)
+    all_properties = d1np.getNodeProperties(conn, args.nodeid)
+    property_dict = {
+    }
+    for k in d1np.ALLOWED_PROPERTIES:
+        property_dict[k] = None
+    for dn, entry in all_properties:
+        #ldif_writer.unparse(dn, entry)
+        sentry = ldap_entry_to_strings(entry)
+        if 'd1Node' in sentry.get('objectClass', []):
+            # Properties set in the node document
+            doc = {}
+            for k, v in sentry.items():
+                if k == "objectClass":
+                    continue
+                if isinstance(v, list):
+                    if len(v) == 1:
+                        property_dict[k] = v[0]
+                    else:
+                        property_dict[k] = v
+                else:
+                    property_dict[k] = v
+            #property_dict[args.nodeid] = {'node': doc}
+        elif 'd1NodeProperty' in sentry.get('objectClass', []):
+            # Other properties, including CN_*
+            k = sentry['d1NodePropertyId'][0]
+            v = sentry['d1NodePropertyValue']
+            if isinstance(v, list):
+                if len(v) == 1:
+                    v = v[0]
+            property_dict[k] = v
+    if args.format == "json":
+        rich.print_json(data=property_dict)
+    else:
+        table = rich.table.Table()
+        table.add_column("Property")
+        table.add_column("Value")
+        for k, v in property_dict.items():
+            if k.startswith('CN_'):
+                table.add_row(k, v, style=style_bold)
+            else:
+                table.add_row(k, v, style=style_default)
+        console = rich.console.Console()
+        console.print(table)
+
+    #print(json.dumps(property_dict, indent=2))
     #results = d1np.readNodeProperty(conn, args.nodeid, the_key)
     #printNodeProperties(results, args.format)
     conn.unbind_s()
