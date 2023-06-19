@@ -15,28 +15,6 @@ Protected node properties are set directly in the node document store (i.e. LDAP
 
 Protected node properties are all key, value entries that appear in the node document Properties element with a key prefix of "CN_"
 
-Example: add an entry:
-
-  dn: d1NodePropertyId=CN_logo_url_2,cn=urn:node:mnDemo6,dc=dataone,dc=org
-  changetype: add
-  objectClass: top
-  objectClass: d1NodeProperty
-  d1NodeId: urn:node:mnDemo6
-  d1NodePropertyId: CN_logo_url_2
-  d1NodePropertyKey: CN_logo_url
-  d1NodePropertyValue: https://raw.github.com
-
-Example: delete an entry:
-
-dn: d1NodePropertyId=CN_logo_url_2,cn=urn:node:mnDemo6,dc=dataone,dc=org
-changetype: delete
-
-Example: find node properties for NodeID:
-
-  ldapsearch -H ldap://localhost -D cn=admin,dc=dataone,dc=org -w PASSWORD \
-   -b "cn=urn:node:mnDemo6,dc=dataone,dc=org" \
-   -s one -a always -z 1000 -LLL \
-   "(objectClass=d1NodeProperty)"
 
 Yaml properties file:
 
@@ -47,19 +25,16 @@ nodes:
   - nodeId: "urn:node:other"
 """
 import argparse
-import io
 import logging
 import os.path
 import sys
 import json
-import ldif
 import rich
 import rich.table
 import rich.console
 import yaml
 import d1_admin_tools
 from d1_admin_tools import d1_node_properties as d1np
-from pprint import pprint
 
 
 def printNodeProperties(properties, format="text"):
@@ -79,7 +54,7 @@ def processUpdateFromYaml(conn, yaml_file, dry_run=True):
     _L = logging.getLogger("YamlBatch")
     properties = {}
     with open(yaml_file, "r") as yaml_src:
-        properties = yaml.load(yaml_src)
+        properties = yaml.safe_load(yaml_src)
     for node_props in properties["nodes"]:
         node_id = node_props["nodeId"]
         for the_key in node_props["properties"]:
@@ -104,6 +79,7 @@ def processUpdateFromYaml(conn, yaml_file, dry_run=True):
 
 # === main ===
 
+
 def ldap_entry_to_strings(entry):
     res = {}
     for k, v in entry.items():
@@ -112,6 +88,7 @@ def ldap_entry_to_strings(entry):
         else:
             res[k] = str(v)
     return res
+
 
 def main():
     defaults = {"format": ["text", "json"]}
@@ -235,19 +212,14 @@ def main():
             d1np.createOrUpdateNodeProperty(conn, args.nodeid, args.key, args.value)
             the_key = "*"
 
-    #output = io.StringIO()
-    #ldif_writer = ldif.LDIFWriter(output)
     all_properties = d1np.getNodeProperties(conn, args.nodeid)
-    property_dict = {
-    }
+    property_dict = {}
     for k in d1np.ALLOWED_PROPERTIES:
         property_dict[k] = None
     for dn, entry in all_properties:
-        #ldif_writer.unparse(dn, entry)
         sentry = ldap_entry_to_strings(entry)
-        if 'd1Node' in sentry.get('objectClass', []):
+        if "d1Node" in sentry.get("objectClass", []):
             # Properties set in the node document
-            doc = {}
             for k, v in sentry.items():
                 if k == "objectClass":
                     continue
@@ -258,11 +230,10 @@ def main():
                         property_dict[k] = v
                 else:
                     property_dict[k] = v
-            #property_dict[args.nodeid] = {'node': doc}
-        elif 'd1NodeProperty' in sentry.get('objectClass', []):
+        elif "d1NodeProperty" in sentry.get("objectClass", []):
             # Other properties, including CN_*
-            k = sentry['d1NodePropertyId'][0]
-            v = sentry['d1NodePropertyValue']
+            k = sentry["d1NodePropertyId"][0]
+            v = sentry["d1NodePropertyValue"]
             if isinstance(v, list):
                 if len(v) == 1:
                     v = v[0]
@@ -274,16 +245,12 @@ def main():
         table.add_column("Property")
         table.add_column("Value")
         for k, v in property_dict.items():
-            if k.startswith('CN_'):
+            if k.startswith("CN_"):
                 table.add_row(k, v, style=style_bold)
             else:
                 table.add_row(k, v, style=style_default)
         console = rich.console.Console()
         console.print(table)
-
-    #print(json.dumps(property_dict, indent=2))
-    #results = d1np.readNodeProperty(conn, args.nodeid, the_key)
-    #printNodeProperties(results, args.format)
     conn.unbind_s()
 
 

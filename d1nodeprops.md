@@ -1,5 +1,11 @@
 # d1nodeprops
 
+```
+usage: d1nodeprops [-h] [-H HOST] [-I NODEID] [-k KEY] [-o OPERATION] [-p PASSWORD] [-y YAML] [-Y] [-c CONFIG] [-e ENVIRONMENT]
+                   [-f FORMAT] [-l]
+                   [value]
+```
+
 Get and set extended properties for nodes in a DataONE environment.
 
 `d1nodeprops` works directly with the CN LDAP service, and so the script must be run on a CN or with assistance from an SSH tunnel. 
@@ -198,4 +204,51 @@ d1nodeprops -I urn:node:mnTestGMN1 -o update -p ****** -k CN_node_name "MN Test 
 │ d1NodeLogLastAggregated   │ 2021-05-18T23:45:55.455+00:00            │
 │ d1NodeAggregateLogs       │ FALSE                                    │
 └───────────────────────────┴──────────────────────────────────────────┘
+```
+
+Batch set properties for a node using a YAML file:
+
+```
+$ cat node_props.yaml
+nodes:
+  - nodeId: "urn:node:mnTestGMN1"
+    properties:
+      CN_node_name: GMN1 Test Node
+      CN_operational_status: operational
+      
+$ d1nodeprops -o update -p ***** -y node_props.yaml
+DN: cn=urn:node:mnTestGMN1,dc=dataone,dc=org
+Key                        Value
+CN_node_name               GMN1 Test Node
+CN_operational_status      operational
+```
+
+## Notes on Custom Node Properties
+
+Example: add an entry LDIF:
+
+```
+dn: d1NodePropertyId=CN_logo_url_2,cn=urn:node:mnDemo6,dc=dataone,dc=org
+changetype: add
+objectClass: top
+objectClass: d1NodeProperty
+d1NodeId: urn:node:mnDemo6
+d1NodePropertyId: CN_logo_url_2
+d1NodePropertyKey: CN_logo_url
+d1NodePropertyValue: https://raw.github.com
+```
+Example: delete an entry LDIF:
+
+```
+dn: d1NodePropertyId=CN_logo_url_2,cn=urn:node:mnDemo6,dc=dataone,dc=org
+changetype: delete
+```
+
+Example: find node properties for NodeID:
+
+```
+ldapsearch -H ldap://localhost -D cn=admin,dc=dataone,dc=org -w PASSWORD \
+  -b "cn=urn:node:mnDemo6,dc=dataone,dc=org" \
+  -s one -a always -z 1000 -LLL \
+  "(objectClass=d1NodeProperty)"
 ```
