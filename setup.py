@@ -81,6 +81,7 @@ setup(
                       'ruamel.yaml',
                       'pyyaml',
                       'shortuuid',
+                      'rich',
                       ],
 
     # List additional groups of dependencies here (e.g. development
