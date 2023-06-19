@@ -24,7 +24,10 @@ import getpass
 import time
 import keyring
 from selenium import webdriver
+from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support import expected_conditions as EC
 
 KEYRING_NAME = "ORCID-personal"
 SERVER = "cn-stage.test.dataone.org"
@@ -62,22 +65,29 @@ def doLoginWithOrcid(server=SERVER):
     token_url = "https://{0}/portal/token".format(server)
     driver = webdriver.Chrome()
     driver.get(auth_url)
-    logging.debug("Looking for element 'userId'...")
-    e = driver.find_element_by_name("userId")
+    logging.debug("URL: %s", auth_url)
+    logging.debug("Looking for element 'id = username'...")
+    try:
+        e = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.ID, "username"))
+        )
+    except:
+        raise ValueError("Unable to load page %s", auth_url)
+    e = driver.find_element(By.ID, "username")
     orcid = keyring.get_password(KEYRING_NAME, "ID")
     e.send_keys(orcid)
     logging.debug("Looking for element 'password'...")
-    e = driver.find_element_by_name("password")
+    e = driver.find_element(By.ID, "password")
     e.send_keys(keyring.get_password(KEYRING_NAME, orcid))
     logging.debug("Looking for element 'authorize'...")
-    e = driver.find_element_by_id("form-sign-in-button")
+    e = driver.find_element(By.ID, "signin-button")
     e.send_keys(Keys.RETURN)
     logging.info("Pausing for 5 seconds...")
     time.sleep(5)
     driver.get(token_url)
     for cookie in driver.get_cookies():
         logging.info("  COOKIE: {0}".format(cookie))
-    e = driver.find_element_by_xpath("//html/body/pre[1]")
+    e = driver.find_element(By.XPATH, "//html/body/pre[1]")
     print((e.text))
     # raw_input("\nPress Enter to continue...")
 
