@@ -20,6 +20,9 @@ from d1_admin_tools import d1_nodes
 import requests
 from requests import exceptions
 import http.client
+import rich
+import rich.console
+import rich.table
 
 PING_TIMEOUT = 3
 GETOBJECT_TIMEOUT = 10
@@ -195,7 +198,7 @@ def doListNodes(
         try:
             row["ipAddress"] = socket.gethostbyname(row["domainName"])
         except socket.gaierror as e:
-            logger.warn("No ip available for %s", row["domainName"])
+            logger.warning("No ip available for %s", row["domainName"])
             row["ipAddress"] = ""
         node_wrap = nodes.getNode(row["nodeId"])
         if node_wrap.isV2():
@@ -404,28 +407,12 @@ def main():
             try:
                 summary.append(result["ipAddress"])
             except AttributeError as e:
-                logger.warn(str(e))
+                logger.warning(str(e))
     if format == "json":
-        import json
-
         if summary is not None:
-            print(
-                (
-                    json.dumps(
-                        summary, indent=2, encoding=d1_admin_tools.d1_config.ENCODING
-                    )
-                )
-            )
+            rich.print_json(data=summary, indent=2)
             return 0
-        print(
-            (
-                json.dumps(
-                    results["items"],
-                    indent=2,
-                    encoding=d1_admin_tools.d1_config.ENCODING,
-                )
-            )
-        )
+        rich.print_json(data=results["items"])
         return 0
     if format == "yaml":
         import yaml
@@ -462,7 +449,28 @@ def main():
     if format == "csv":
         renderCSVResults(results, fields)
         return 0
-    renderTextResults(results["items"], fields)
+    table = rich.table.Table(title="Nodes")
+    for col in fields:
+        table.add_column(col)
+    style_offline = rich.style.Style(color=None, bgcolor=None, bold=False)
+    style_default = rich.style.Style(color=None, bgcolor=None, bold=True)
+    style_error = rich.style.Style(color="bright_red", bgcolor=None, bold=False)
+    for row in results["items"]:
+        trow = []
+        style = style_default
+        for f in fields:
+            _state = row.get("state", "up")
+            _status = row.get("status", "200")
+            if _state == "down":
+                style = style_offline
+            elif _status != "":
+                if _state == "up" and _status != "200":
+                    style = style_error
+            trow.append(row[f])
+        table.add_row(*trow, style=style)
+    console = rich.console.Console()
+    console.print(table)
+    #renderTextResults(results["items"], fields)
     return 0
 
 
