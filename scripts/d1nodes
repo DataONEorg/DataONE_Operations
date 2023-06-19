@@ -4,28 +4,28 @@ List nodes in a DataONE environment.
 
 """
 
-import sys
-import logging
 import argparse
-import socket
-from urllib.parse import urlparse
-import d1_admin_tools.d1_config
-import pprint
-from d1_client import cnclient_2_0
-import time
 import datetime
-import pytz
-import humanize
-from d1_admin_tools import d1_nodes
-import requests
-from requests import exceptions
+import logging
+import pprint
+import socket
+import sys
+import time
+import urllib.parse
+import d1_client
 import http.client
+import humanize
+import pytz
+import requests
 import rich
 import rich.console
 import rich.table
+import d1_admin_tools.d1_config
+import d1_admin_tools.d1_nodes
 
 PING_TIMEOUT = 3
 GETOBJECT_TIMEOUT = 10
+
 
 def getRedmineNodeIssueUrl(node_id, api_key, base_url="https://redmine.dataone.org/"):
     """
@@ -59,16 +59,12 @@ def testNodePing(node_wrap, timeout=PING_TIMEOUT):
     logging.info("Pinging %s", node_wrap.getID())
     client = node_wrap.getClient(allow_redirects=False, timeout=timeout)
     tstart = time.time()
-    message = {
-        "status":"-9999",
-        "ping": 0,
-        "status_message": ""
-    }
+    message = {"status": "-9999", "ping": 0, "status_message": ""}
     try:
         response = client.pingResponse()
         message["status"] = response.status_code
         message["status_message"] = http.client.responses[response.status_code]
-    except exceptions.SSLError as ex:
+    except requests.exceptions.SSLError as ex:
         logging.error(ex)
         try:
             message["status"] = -1
@@ -76,7 +72,7 @@ def testNodePing(node_wrap, timeout=PING_TIMEOUT):
         except AttributeError as e2:
             message["status"] = -1
             message["status_message"] = str(ex)
-    except exceptions.ConnectionError as ex:
+    except requests.exceptions.ConnectionError as ex:
         logging.error(ex)
         try:
             message["status"] = -2
@@ -134,7 +130,7 @@ def doListNodes(
     redmine_key=None,
     ignore_state=False,
     ping_timeout=PING_TIMEOUT,
-    getobject_timeout=GETOBJECT_TIMEOUT
+    getobject_timeout=GETOBJECT_TIMEOUT,
 ):
     """
     returns  dict with {xml}, items:[  ]
@@ -144,10 +140,10 @@ def doListNodes(
         do_ping = True
     time_stamp = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S")
     logger = logging.getLogger("main")
-    client = cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env))
+    client = d1_client.cnclient_2_0.CoordinatingNodeClient_2_0(config.envPrimaryBaseURL(env))
     nodes_response = client.listNodesResponse()
     nodes_doc = client._read_dataone_type_response(nodes_response, "NodeList")
-    nodes = d1_nodes.Nodes(config.envPrimaryBaseURL(env))
+    nodes = d1_admin_tools.d1_nodes.Nodes(config.envPrimaryBaseURL(env))
     nodes.load(nodes=nodes_doc)
     result = {
         "generated": datetime.datetime.utcnow(),
@@ -193,7 +189,7 @@ def doListNodes(
             v = str(property.value())
             if k.startswith("CN_"):
                 row[k] = v
-        urlparts = urlparse(row["baseUrl"])
+        urlparts = urllib.parse.urlparse(row["baseUrl"])
         row["domainName"] = urlparts.netloc.split(":")[0]
         try:
             row["ipAddress"] = socket.gethostbyname(row["domainName"])
@@ -212,7 +208,9 @@ def doListNodes(
                 if res["status"] != 200:
                     row["status_message"] = res["status_message"]
         if do_listobjects:
-            res = getObjectCount(nodes, row["nodeId"], row["status"], timeout=getobject_timeout)
+            res = getObjectCount(
+                nodes, row["nodeId"], row["status"], timeout=getobject_timeout
+            )
             row["mn_object_count"] = str(res["mn_object_count"])
             row["cn_object_count"] = str(res["cn_object_count"])
         if node.type.lower() == "mn":
@@ -239,7 +237,9 @@ def doListNodes(
                     [i[1] for i in list(row["schedule"].items())]
                 )
             else:
-                logger.warning("No synchronization info for node: %s", node.identifier.value())
+                logger.warning(
+                    "No synchronization info for node: %s", node.identifier.value()
+                )
         for s in node.subject:
             row["subject"].append(s.value())
         for s in node.contactSubject:
@@ -359,11 +359,7 @@ def main():
         action="store_true",
         help="Generate a ping report in CSV. Overrides other output flags.",
     )
-    parser.add_argument(
-        "--timeout",
-        default=3,
-        help="Ping timeout in seconds"
-    )
+    parser.add_argument("--timeout", default=3, help="Ping timeout in seconds")
     args, config = d1_admin_tools.defaultScriptMain(parser)
     logger = logging.getLogger("main")
 
@@ -470,7 +466,7 @@ def main():
         table.add_row(*trow, style=style)
     console = rich.console.Console()
     console.print(table)
-    #renderTextResults(results["items"], fields)
+    # renderTextResults(results["items"], fields)
     return 0
 
 
