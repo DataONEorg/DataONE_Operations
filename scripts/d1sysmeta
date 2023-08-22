@@ -24,7 +24,7 @@ def getSystemMetadata(client, pid):
         return dataone_response.DataONEResponse(obj=res)
     except Exception as e:
         logger.info(e)
-    return dataone_response.DataONEResponse(e)
+        return dataone_response.DataONEResponse(e)
 
 
 def main():
