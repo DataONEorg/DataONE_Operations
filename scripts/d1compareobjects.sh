@@ -25,7 +25,7 @@
 
 set -euo pipefail
 
-PAGE_SIZE=1000
+PAGE_SIZE=7000
 
 declare -A ENV_BASE_URL=(
   [dev]="https://cn-dev.test.dataone.org/cn"
@@ -90,9 +90,9 @@ fi
 
 WORKDIR=$(mktemp -d)
 trap 'rm -rf "$WORKDIR"' EXIT
-OUTDIR=$(~/force_sync/)
+OUTDIR="$HOME/force_sync"
 mkdir -p "$OUTDIR/token" "$OUTDIR/pid"
-MN_NAME=${$MN_ID##*:}
+MN_NAME=${MN_ID##*:}
 TOKEN_FILE="$OUTDIR/token/${MN_NAME}"
 
 if [[ -z "${TOKEN_FILE:-}" ]]; then
@@ -142,11 +142,12 @@ get_all_pids() {
   local start=0
   local total=-1
   local page=0
+  local page_size="$PAGE_SIZE"
 
   while [[ "$total" -lt 0 || "$start" -lt "$total" ]]; do
     page=$((page + 1))
     local resp_file="$WORKDIR/page_${RANDOM}_${page}.xml"
-    local url="${base_url}/v2/object?start=${start}&count=${PAGE_SIZE}${extra_query}"
+    local url="${base_url}/v2/object?start=${start}&count=${page_size}${extra_query}"
     debug "GET $url"
     if ! curl "${CURL_OPTS[@]}" "$url" -o "$resp_file"; then
       log "listObjects request failed for $url"
@@ -154,21 +155,34 @@ get_all_pids() {
     fi
 
     if [[ "$total" -lt 0 ]]; then
-      total=$(xml_field "$resp_file" "//*[local-name()='total']")
+      total=$(xml_field "$resp_file" "//*[local-name()='objectList']/@total")
       [[ -z "$total" ]] && total=0
       log "Total matching records = $total"
     fi
 
+    local response_start
+    response_start=$(xml_field "$resp_file" "//*[local-name()='objectList']/@start")
+    [[ -z "$response_start" ]] && response_start="$start"
+
     local count
-    count=$(xml_field "$resp_file" "//*[local-name()='count']")
-    [[ -z "$count" ]] && count=0
+    count=$(xml_field "$resp_file" "//*[local-name()='objectList']/@count")
+    if [[ -z "$count" || ! "$count" =~ ^[0-9]+$ ]]; then
+      log "Invalid objectList count '$count' in response"
+      break
+    fi
+
+    if [[ "$page" -eq 1 && "$count" -lt "$page_size" ]]; then
+      log "Server returned $count objects per page despite requested count=$page_size. Adjusting page size to $count."
+      page_size="$count"
+    fi
 
     xml_field "$resp_file" "//*[local-name()='objectInfo']/*[local-name()='identifier']" >> "$out_file"
 
     if [[ "$count" -eq 0 ]]; then
       break
     fi
-    start=$((start + count))
+    start=$((response_start + count))
+    debug "Page $page returned count=$count; next start=$start of total=$total"
   done
 }
 
@@ -177,8 +191,8 @@ if [[ -z "$MN_BASE_URL" ]]; then
 fi
 log "MN base URL = $MN_BASE_URL"
 
-MN_PIDS_FILE="$WORKDIR/$($MN_NAME)_mn_pids.txt"
-CN_PIDS_FILE="$WORKDIR/$($MN_NAME)_cn_pids.txt"
+MN_PIDS_FILE="$WORKDIR/${MN_NAME}_mn_pids.txt"
+CN_PIDS_FILE="$WORKDIR/${MN_NAME}_cn_pids.txt"
 
 log "Retrieving identifiers from MN $MN_ID ($MN_BASE_URL)"
 get_all_pids "$MN_BASE_URL" "" "$MN_PIDS_FILE"
@@ -188,15 +202,15 @@ log "Retrieving identifiers known to CN for nodeId=$MN_ID"
 get_all_pids "$CN_BASE_URL" "&nodeId=$MN_ID" "$CN_PIDS_FILE"
 log "CN has $(wc -l < "$CN_PIDS_FILE" | tr -d ' ') identifiers for this MN"
 
-UNSYNCED_FILE="$OUTDIR/$MN_NAME"
-NUM_UNSYNCED=$(wc -l < "$UNSYNCED_FILE" | tr -d ' ')
+UNSYNCED_FILE="$OUTDIR/pid/$MN_NAME"
 comm -23 <(sort -u "$MN_PIDS_FILE") <(sort -u "$CN_PIDS_FILE") > "$UNSYNCED_FILE"
+NUM_UNSYNCED=$(wc -l < "$UNSYNCED_FILE" | tr -d ' ')
 log "$NUM_UNSYNCED identifiers on MN are not yet on CN"
 
 if [[ -n "$OUT_PATH" ]]; then
   cp "$UNSYNCED_FILE" "$OUT_PATH"
 else
-  cat "$UNSYNCED_FILE"
+  echo "Output is $UNSYNCED_FILE"
 fi
 
 if [[ "${FORCE_SYNC:-0}" -eq 1 ]]; then
