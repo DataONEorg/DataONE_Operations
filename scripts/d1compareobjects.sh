@@ -11,13 +11,16 @@
 # Authentication is via a Bearer token. Set the TOKEN_FILE environment
 # variable to the path of a file containing the token string.
 #
+# Requires a member node token file at ~/force_sync/token/NODE, where NODE is the nodeId of the MN.
+#
 # Usage:
-#   TOKEN_FILE=~/.d1/token.txt d1compareobjects.sh [options] <mn_id>
+#   d1compareobjects.sh [options] <mn_id>
 #
 # Options:
 #   --env ENV            Environment: dev, stage, sandbox, prod (default: prod)
 #   --mn-base-url URL    Base URL of the MN (looked up from the CN if omitted)
 #   -o, --out FILE       File to write unsynced identifiers to (default: stdout)
+#   -f, --force-sync     Invoke a force sync for each unsynchronized identifier
 #   --debug              Verbose logging to stderr
 
 set -euo pipefail
