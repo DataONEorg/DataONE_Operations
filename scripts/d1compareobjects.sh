@@ -38,6 +38,8 @@ ENV_NAME="prod"
 MN_ID=""
 MN_BASE_URL=""
 OUT_PATH=""
+TOKEN_FILE=""
+FORCE_SYNC=0
 DEBUG=0
 
 log() {
