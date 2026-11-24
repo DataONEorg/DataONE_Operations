@@ -21,7 +21,7 @@
 #                        this file, at FILE.err)
 #   --verify-only        Only check the CN /meta endpoint for each PID in
 #                        NODE's PID list; performs no database or object store
-#                        changes. Run this after cn_force_accounting.sh has
+#                        changes. Run this after d1cn_force_accounting.sh has
 #                        completed its normal (mutating) pass on BOTH sister
 #                        CNs, since verification requires both CNs to already
 #                        have the systemmetadata row and object in place.
@@ -32,10 +32,10 @@
 # Object transfer:
 #   Cross-CN object copies never SSH as root or as the tomcat service
 #   account. --sister-user must be an unprivileged account (e.g. cnsync)
-#   that stages files via scp and invokes remote/d1cnremote_object_sync.sh through a
+#   that stages files via scp and invokes remote/cn_object_sync.sh through a
 #   narrowly scoped sudo rule on the sister CN; that wrapper is the only
 #   thing that writes to /var/metacat/documents and sets tomcat:tomcat
-#   ownership. See remote/d1cnremote_object_sync.sh for the required sudoers setup.
+#   ownership. See remote/cn_object_sync.sh for the required sudoers setup.
 #
 # Warning:
 #   This script directly modifies the metacat postgres database and the object
@@ -59,8 +59,8 @@ PID_FILE_OVERRIDE=""
 VERIFY_ONLY=0
 SISTER_HOST="${CN_SISTER_HOST:-}"
 SISTER_USER="${SCP_USER:-cnsync}"
-REMOTE_WRAPPER="/usr/local/bin/d1cnremote_object_sync.sh"
-REMOTE_STAGING_DIR="/var/lib/d1cnremote_object_sync/staging"
+REMOTE_WRAPPER="/usr/local/bin/cn_object_sync.sh"
+REMOTE_STAGING_DIR="/var/lib/cn_object_sync/staging"
 OBJECT_OWNER="tomcat:tomcat"
 DEBUG=0
 DRY_RUN=0
@@ -131,7 +131,7 @@ sql_quote() {
   fi
   value=${value//\\/\\\\}
   value=${value//"'"/"''"}
-  printf "'%s'" "$value"
+  printf "E'%s'" "$value"
 }
 
 db_exec() {
@@ -255,7 +255,7 @@ ERR_FILE="${PIDS_FILE}.err"
 : > "$ERR_FILE"
 
 if [[ ! -s "$PIDS_FILE" ]]; then
-  log "No unsynchronized PID list found at $PIDS_FILE for $MN_ID. Run cn_synchronize.sh first."
+  log "No unsynchronized PID list found at $PIDS_FILE for $MN_ID. Run d1cn_synchronize.sh first."
   exit 0
 fi
 
@@ -267,7 +267,7 @@ if [[ "$VERIFY_ONLY" -ne 1 ]]; then
 
   if [[ "$SISTER_USER" == "root" || "$SISTER_USER" == "tomcat" ]]; then
     echo "Error: --sister-user must be an unprivileged sync account (e.g. cnsync), not root or tomcat." >&2
-    echo "See remote/d1cnremote_object_sync.sh for the required sudo/staging setup." >&2
+    echo "See remote/cn_object_sync.sh for the required sudo/staging setup." >&2
     exit 1
   fi
 fi
@@ -479,31 +479,76 @@ SQL
   return 0
 }
 
-insert_xml_access_record() {
+sync_xml_access() {
   local guid="$1"
+  local xml_file="$2"
+  local policy_path="/*[local-name()='systemMetadata']/*[local-name()='accessPolicy']"
+  local rule_count rule_index subject_count subject_index permission_count permission_index
+  local rule_path subject permission permission_bits quoted_guid sql
 
-  # Grants default public read access, matching the row metacat itself
-  # creates for a public object: permission 4 (read), perm_type allow,
-  # perm_order allowFirst, no accessfileid/subtree/node scoping.
-  local sql
-  sql=$(cat <<SQL
-INSERT INTO xml_access (
-  guid,
-  accessfileid,
-  principal_name,
-  permission,
-  perm_type,
-  perm_order
-) VALUES (
-  $(sql_quote "$guid"),
-  NULL,
-  $(sql_quote "public"),
-  4,
-  $(sql_quote "allow"),
-  $(sql_quote "allowFirst")
-);
-SQL
-)
+    if ! xmlstarlet val -w "$xml_file" >/dev/null 2>&1 ||
+      [[ "$(xmlstarlet sel -t -v "count(/*[local-name()='systemMetadata']/*[local-name()='identifier'])" "$xml_file")" != 1 ]] ||
+     [[ "$(xml_text "$xml_file" "/*[local-name()='systemMetadata']/*[local-name()='identifier']")" != "$guid" ]]; then
+    log "Invalid system metadata for $guid; access rules not changed"
+    echo "$guid" >> "$ERR_FILE"
+    return 1
+  fi
+
+  rule_count=$(xmlstarlet sel -t -v "count($policy_path/*[local-name()='allow'])" "$xml_file") || return 1
+  if [[ "$(xmlstarlet sel -t -v "count($policy_path)" "$xml_file")" -gt 1 ]] ||
+     [[ "$(xmlstarlet sel -t -v "count($policy_path/*[local-name()!='allow'])" "$xml_file")" -gt 0 ]]; then
+    log "Unsupported access policy for $guid; access rules not changed"
+    echo "$guid" >> "$ERR_FILE"
+    return 1
+  fi
+
+  quoted_guid=$(sql_quote "$guid")
+  sql="BEGIN;
+CREATE TEMP TABLE cn_access_rules (principal_name text, permission integer) ON COMMIT DROP;"
+  for ((rule_index=1; rule_index<=rule_count; rule_index++)); do
+    rule_path="($policy_path/*[local-name()='allow'])[$rule_index]"
+    subject_count=$(xmlstarlet sel -t -v "count($rule_path/*[local-name()='subject'])" "$xml_file") || return 1
+    permission_count=$(xmlstarlet sel -t -v "count($rule_path/*[local-name()='permission'])" "$xml_file") || return 1
+     if [[ "$subject_count" -eq 0 || "$permission_count" -eq 0 ]] ||
+       [[ "$(xmlstarlet sel -t -v "count($rule_path/*[local-name()='subject' or local-name()='permission']/*)" "$xml_file")" -gt 0 ]] ||
+       [[ "$(xmlstarlet sel -t -v "count($rule_path/*[local-name()!='subject' and local-name()!='permission'])" "$xml_file")" -gt 0 ]]; then
+      log "Invalid access rule for $guid; access rules not changed"
+      echo "$guid" >> "$ERR_FILE"
+      return 1
+    fi
+    permission_bits=0
+    for ((permission_index=1; permission_index<=permission_count; permission_index++)); do
+      permission=$(xmlstarlet sel -t -v "($rule_path/*[local-name()='permission'])[$permission_index]" "$xml_file" && printf '.') || return 1
+      permission=${permission%.}
+      case "$permission" in
+        read) permission_bits=$((permission_bits | 4)) ;;
+        write) permission_bits=$((permission_bits | 2)) ;;
+        changePermission) permission_bits=$((permission_bits | 7)) ;;
+        *)
+          log "Unsupported permission '$permission' for $guid; access rules not changed"
+          echo "$guid" >> "$ERR_FILE"
+          return 1
+          ;;
+      esac
+    done
+    for ((subject_index=1; subject_index<=subject_count; subject_index++)); do
+      subject=$(xmlstarlet sel -t -v "($rule_path/*[local-name()='subject'])[$subject_index]" "$xml_file" && printf '.') || return 1
+      subject=${subject%.}
+      if [[ ! "$subject" =~ [^[:space:]] || "$subject" == *$'\n'* || "$subject" == *$'\r'* ]]; then
+        log "Invalid access subject for $guid; access rules not changed"
+        echo "$guid" >> "$ERR_FILE"
+        return 1
+      fi
+      sql+=$'\n'"INSERT INTO cn_access_rules VALUES ($(sql_quote "$subject"), $permission_bits);"
+    done
+  done
+  sql+=$'\n'"CREATE TEMP TABLE cn_access_order ON COMMIT DROP AS
+SELECT COALESCE((SELECT perm_order FROM xml_access WHERE guid = $quoted_guid LIMIT 1), 'allowFirst') AS perm_order;
+DELETE FROM xml_access WHERE guid = $quoted_guid AND perm_type = 'allow';
+INSERT INTO xml_access (guid, principal_name, permission, perm_type, perm_order)
+SELECT $quoted_guid, principal_name, bit_or(permission), 'allow', (SELECT perm_order FROM cn_access_order)
+FROM cn_access_rules GROUP BY principal_name;
+COMMIT;"
 
   if [[ "$DRY_RUN" -eq 1 ]]; then
     log "DRY RUN: $sql"
@@ -512,11 +557,11 @@ SQL
 
   if ! db_exec "$sql"; then
     echo "$guid" >> "$ERR_FILE"
-    log "Failed to insert xml_access for $guid"
+    log "Failed to synchronize xml_access for $guid"
     return 1
   fi
 
-  log "Inserted xml_access for $guid"
+  log "Synchronized xml_access for $guid"
   return 0
 }
 
@@ -574,28 +619,24 @@ while IFS= read -r guid <&3; do
 
   log "Processing $count: $guid (docid=$docid, rev=$rev)"
 
+  meta_file="$WORKDIR/meta_${guid//[^A-Za-z0-9_.-]/_}.xml"
+  token=$(tr -d '\r\n' < "$TOKEN_FILE")
+  if ! curl -sS -f -H "Authorization: Bearer ${token}" "${MN_BASE_URL}/v2/meta/${guid}" -o "$meta_file"; then
+    echo "$guid" >> "$ERR_FILE"
+    log "Could not fetch metadata for $guid from $MN_BASE_URL; skipped"
+    continue
+  fi
+
   if [[ "$has_sysmeta" -eq 1 ]]; then
     log "PID $guid already has a systemmetadata row; skipping insert, running access/copy checks"
   else
-    meta_file="$WORKDIR/meta_${guid//[^A-Za-z0-9_.-]/_}.xml"
-    token=$(tr -d '\r\n' < "$TOKEN_FILE")
-    if ! curl -sS -f -H "Authorization: Bearer ${token}" "${MN_BASE_URL}/v2/meta/${guid}" -o "$meta_file"; then
-      echo "$guid" >> "$ERR_FILE"
-      log "Could not fetch metadata for $guid from $MN_BASE_URL; skipped"
-      continue
-    fi
-
     if ! insert_systemmetadata_record "$guid" "$docid" "$rev" "$meta_file"; then
       continue
     fi
   fi
 
-  if ! db_exec "SELECT 1 FROM xml_access WHERE guid = $(sql_quote "$guid") AND principal_name = 'public' LIMIT 1;" | grep -q '^1$'; then
-    if ! insert_xml_access_record "$guid"; then
-      continue
-    fi
-  else
-    log "PID $guid already has a public xml_access row; skipping"
+  if ! sync_xml_access "$guid" "$meta_file"; then
+    continue
   fi
 
   if ! transfer_object "$docid" "$rev"; then
