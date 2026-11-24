@@ -240,10 +240,12 @@ if [[ "${FORCE_SYNC:-0}" -eq 1 ]]; then
   fi
   while IFS= read -r line; do
     processed=$((processed + 1))
-    debug "%d/%d: $line" "$processed" "$NUM_UNSYNCED" >&2
-    curl -sS -o /dev/null -H "Authorization: Bearer ${TOKEN}" -F "pid=$line" -X POST https://cn.dataone.org/cn/v2/synchronize || true
+    debug "$processed / $NUM_UNSYNCED: $line" >&2
     if [[ "$DEBUG" -eq 0 ]]; then
+      curl -sS -o /dev/null -H "Authorization: Bearer ${TOKEN}" -F "pid=$line" -X POST https://cn.dataone.org/cn/v2/synchronize || true
       printf '\rProgress: %d/%d' "$processed" "$NUM_UNSYNCED" >&2
+    else
+      curl -H "Authorization: Bearer ${TOKEN}" -F "pid=$line" -X POST https://cn.dataone.org/cn/v2/synchronize || true
     fi
     sleep 5
   done < "$UNSYNCED_FILE"
