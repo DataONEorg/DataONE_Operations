@@ -215,7 +215,7 @@ fi
 
 if [[ "${FORCE_SYNC:-0}" -eq 1 ]]; then
   log "Force sync invoked for $MN_NAME. Start time: $(date '+%Y-%m-%d %H:%M:%S')"
-  log "This action enforces a wait time of 5 seconds between each request to avoid overwhelming the CN. This could take a long time ($((NUM_UNSYNCED * 5)) seconds)."
+  log "This action enforces a wait time of 5 seconds between each request to avoid overwhelming the CN. This could take a long time (ETA: ~$((NUM_UNSYNCED * 5 / 60)) minutes)."
   debug "Force sync attempted for the following identifiers:"
   while read line; do
     debug "$line"
