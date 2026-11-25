@@ -87,6 +87,33 @@ Walks the version chain of one PID or SID backwards (`obsoletes`) and forwards (
 d1cn_repair_chain.sh [options] <NODE> <pid_or_sid>
 ```
 
+### d1cn_repair_mn_chains.py
+
+Scans the MN's paginated `listObjects` and system metadata to find all PIDs
+participating in version links, including linked PIDs not returned by the
+listing. Each linked PID is compared once against the CN for `obsoletes`,
+`obsoletedBy`, and `seriesId`, using the MN as the reference. Missing or
+different CN metadata is reported, submitted to `/v2/synchronize`, and
+rechecked for up to 60 seconds per PID. This script uses the same
+`~/force_sync/token/NODE` token as `d1cn_repair_chain.sh`, and requires
+Python 3 with its standard library.
+
+```bash
+# Inspect without changing the CN
+python3 d1cn_repair_mn_chains.py --no-sync urn:node:UCSB1
+# Synchronize discrepancies and check again
+python3 d1cn_repair_mn_chains.py --env prod --wait 60 urn:node:UCSB1
+```
+
+`--mn-base-url` and `--cn-base-url` override node URLs; `--page-size` controls
+listing requests. Exit status is 0 for a matching scan, 1 for unresolved
+differences, and 2 for lookup, pagination, or synchronization errors. Errors
+are reported explicitly, and metadata that cannot be read is not repaired.
+The scan is not a snapshot: changes to the MN during a run may require another
+pass. Singleton objects without version links are not compared. No direct
+database changes are made; use `d1cn_repair_chain.sh` or
+`d1cn_force_accounting.sh` separately for further investigation.
+
 ### d1cn_force_accounting.sh
 
 This script reads the `~/force_sync/pid/NODE` file, then uses the PID to query the `guid` field of the `metacat` database's `identifier` table as the `postgres` user to find the values of the `docid` and `rev` fields. It fetches system metadata from the member node, inserts a missing `systemmetadata` row, and synchronizes the `xml_access` allow rules from the member node's access policy. It then finds the object store path using the `docid` and `rev` values and attempts to sync the object to or from the sister CN using `scp`.
